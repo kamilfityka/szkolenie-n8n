@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # Tworzy jednego użytkownika n8n oraz 20 osobnych baz danych (po jednej per uczestnik).
 # Zmienne N8N_DB_USER i N8N_DB_PASSWORD muszą być ustawione w środowisku kontenera.
@@ -12,20 +11,26 @@ fi
 
 echo "SETUP START: tworzę użytkownika '${N8N_DB_USER}'..."
 
-# Utwórz użytkownika jeśli nie istnieje; jeśli istnieje — zaktualizuj hasło.
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
-  -c "CREATE USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';" 2>/dev/null \
-  || psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
-       -c "ALTER USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';"
+# Utwórz użytkownika; jeśli już istnieje — zaktualizuj hasło.
+if psql --username "$POSTGRES_USER" \
+     -c "CREATE USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';" 2>/dev/null; then
+  echo "Użytkownik '${N8N_DB_USER}' utworzony."
+else
+  if ! psql --username "$POSTGRES_USER" \
+       -c "ALTER USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';"; then
+    echo "SETUP ERROR: nie można utworzyć ani zaktualizować użytkownika '${N8N_DB_USER}'!"
+    exit 1
+  fi
+  echo "Użytkownik '${N8N_DB_USER}' już istniał — zaktualizowano hasło."
+fi
 
 for i in $(seq -w 1 20); do
   DB="n8n_${i}"
   echo "Tworzę bazę: $DB"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
-    -c "CREATE DATABASE ${DB};" 2>/dev/null || true
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
+  psql --username "$POSTGRES_USER" -c "CREATE DATABASE ${DB};" 2>/dev/null || true
+  psql --username "$POSTGRES_USER" \
     -c "GRANT ALL PRIVILEGES ON DATABASE ${DB} TO ${N8N_DB_USER};"
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$DB" \
+  psql --username "$POSTGRES_USER" --dbname "$DB" \
     -c "GRANT CREATE ON SCHEMA public TO ${N8N_DB_USER};"
 done
 
