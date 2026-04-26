@@ -49,6 +49,7 @@ x-n8n-env: &n8n-env
   DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:-}
   N8N_HOST: ${VPS_IP:-}
   N8N_PROTOCOL: http
+  N8N_SECURE_COOKIE: "false"
   NODE_FUNCTION_ALLOW_BUILTIN: crypto
 
 # ===========================================================================
