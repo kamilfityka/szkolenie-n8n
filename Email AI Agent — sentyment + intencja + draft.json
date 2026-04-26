@@ -1,0 +1,311 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "from",
+              "value": "={{ $json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "subject",
+              "value": "={{ $json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "body",
+              "value": "={{ $json.text || $json.textHtml || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "messageId",
+              "value": "={{ $json.metadata[\"message-id\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "receivedAt",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Normalize Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        -16
+      ],
+      "id": "7e85a6e1-d6e5-4aa3-aa4c-177c0706ce0e"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Przeanalizuj poniższego maila od klienta i zwróć WYŁĄCZNIE obiekt JSON zgodny ze schematem.\n\nNADAWCA: {{ $json.from }}\nTEMAT: {{ $json.subject }}\nTREŚĆ:\n{{ $json.body }}\n\nZasady:\n- sentiment: oceń emocjonalny ton (positive/neutral/negative).\n- intent: jedna z kategorii [complaint, sales_inquiry, support_request, invoice_question, general_info, spam, other]. Jeśli mail łączy kilka — wybierz dominującą.\n- priority: low/medium/high/urgent. \"urgent\" gdy klient grozi rezygnacją, eskaluje, używa wielkich liter w gniewie, albo zgłasza awarię blokującą pracę.\n- summary_pl: 1–2 zdania po polsku, rzeczowo, bez ozdobników.\n- draft_reply_pl: pełna odpowiedź po polsku, ton dopasowany do sentymentu (przy negatywnym — empatia + konkret). Bez podpisu (dodaje go nadawca). Bez \"Szanowny Panie/Pani\" jeśli nie wiesz kim jest — zacznij od \"Dzień dobry,\". Jeśli brakuje informacji do udzielenia konkretnej odpowiedzi (np. nr zamówienia), draft ma o nią dopytać, nie wymyślać faktów.\n- requires_human: true gdy intent=complaint+priority=urgent, gdy mail dotyczy spraw prawnych, gdy klient prosi o rozmowę z konkretną osobą, lub gdy nie masz pewności co do odpowiedzi.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Jesteś asystentem obsługi klienta polskiej firmy. Analizujesz maile przychodzące i przygotowujesz drafty odpowiedzi. Piszesz po polsku, profesjonalnie ale po ludzku — bez korpomowy. Nigdy nie wymyślasz faktów (numerów zamówień, terminów, cen). Jeśli czegoś nie wiesz, draft ma o to dopytać klienta. Zwracasz WYŁĄCZNIE poprawny JSON."
+            }
+          ]
+        }
+      },
+      "name": "LLM Chain — analiza maila",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        -16
+      ],
+      "id": "b0d04e36-d728-44f5-91d7-f7e806ba1b42"
+    },
+    {
+      "parameters": {
+        "model": "gpt-5-nano",
+        "options": {
+          "responseFormat": "json_object"
+        }
+      },
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        704,
+        192
+      ],
+      "id": "1c481671-8538-443c-a0de-c1180592eab8",
+      "credentials": {
+        "openAiApi": {
+          "id": "JFSm5cJowdIPTkmF",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"required\": [\"sentiment\", \"intent\", \"priority\", \"summary_pl\", \"draft_reply_pl\", \"requires_human\"],\n  \"properties\": {\n    \"sentiment\": { \"type\": \"string\", \"enum\": [\"positive\", \"neutral\", \"negative\"] },\n    \"intent\": { \"type\": \"string\", \"enum\": [\"complaint\", \"sales_inquiry\", \"support_request\", \"invoice_question\", \"general_info\", \"spam\", \"other\"] },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\", \"urgent\"] },\n    \"summary_pl\": { \"type\": \"string\" },\n    \"draft_reply_pl\": { \"type\": \"string\" },\n    \"requires_human\": { \"type\": \"boolean\" }\n  }\n}"
+      },
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        192
+      ],
+      "id": "6c241af9-c624-4474-bce2-a03ff78a8c86"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "from",
+              "value": "={{ $('Normalize Email').item.json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "subject",
+              "value": "={{ $('Normalize Email').item.json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "body",
+              "value": "={{ $('Normalize Email').item.json.body }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "messageId",
+              "value": "={{ $('Normalize Email').item.json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "sentiment",
+              "value": "={{ $json.output.sentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "intent",
+              "value": "={{ $json.output.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "priority",
+              "value": "={{ $json.output.priority }}",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "summary",
+              "value": "={{ $json.output.summary_pl }}",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "draft",
+              "value": "={{ $json.output.draft_reply_pl }}",
+              "type": "string"
+            },
+            {
+              "id": "10",
+              "name": "requiresHuman",
+              "value": "={{ $json.output.requires_human }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Merge AI + Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1040,
+        -16
+      ],
+      "id": "a3091d72-045a-4d8d-a312-3bc2056389a7"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        288,
+        -16
+      ],
+      "id": "a2d86f98-f7c1-4cc9-945d-f5b9fe6e8778",
+      "name": "IMAP Trigger",
+      "credentials": {
+        "imap": {
+          "id": "UAA9md3lcU4bEGaw",
+          "name": "IMAP account Szkolenie"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "team": "90121674042",
+        "space": "90127254428",
+        "folder": "901210714280",
+        "list": "901217494605",
+        "name": "=[{{ $json.priority.toUpperCase() }}] {{ $json.intent }} — {{ $json.subject }}",
+        "additionalFields": {
+          "content": "=**Od:** {{ $json.from }} **Otrzymano:** {{ $now.format('yyyy-MM-dd HH:ii:ss') }} **Sentyment:** {{ $json.sentiment }} **Intencja:** {{ $json.intent }} **Priorytet:** {{ $json.priority }} **Wymaga człowieka:** {{ $json.requiresHuman ? '✅ TAK' : '❌ nie' }}  ---  ## 📝 Streszczenie {{ $json.summary }}  ## ✉️ Oryginalny mail ``` {{ $json.body }} ```  ## 🤖 Proponowany draft odpowiedzi {{ $json.draft }}",
+          "priority": "={{ ({'urgent': 1, 'high': 2, 'medium': 3, 'low': 4})[$json.priority] }}",
+          "tags": "=[\"{{ $json.intent }}\", \"sentiment-{{ $json.sentiment }}\"{{ $json.requiresHuman ? ', \"needs-human\"' : '' }}]"
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        -16
+      ],
+      "id": "b41f3b84-c83a-458b-822f-58196cc70aea",
+      "name": "Create a task",
+      "credentials": {
+        "clickUpApi": {
+          "id": "gvSnErpMEXSSwW8l",
+          "name": "ClickUp account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Normalize Email": {
+      "main": [
+        [
+          {
+            "node": "LLM Chain — analiza maila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Chain — analiza maila": {
+      "main": [
+        [
+          {
+            "node": "Merge AI + Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "LLM Chain — analiza maila",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "LLM Chain — analiza maila",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge AI + Email": {
+      "main": [
+        [
+          {
+            "node": "Create a task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IMAP Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a task": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1560ae59992da1376c4a40c4742448b2996b3e71ac857295f7192c93a44f163b"
+  }
+}

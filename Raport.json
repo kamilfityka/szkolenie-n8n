@@ -1,0 +1,233 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "f14bc8b4-2d25-4142-8dbf-2800e3703a44",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "get",
+        "team": "90121674042",
+        "space": "90127254428",
+        "folder": "901210714280"
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "8955cf4a-10f4-41a1-bb1c-b36ce9e82f2f",
+      "name": "Get a folder",
+      "credentials": {
+        "clickUpApi": {
+          "id": "gvSnErpMEXSSwW8l",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "list",
+        "operation": "get",
+        "team": "90121674042",
+        "space": "90127254428",
+        "folder": "901210714280",
+        "list": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        624,
+        0
+      ],
+      "id": "d2fe6bed-c4b7-4a5a-8d07-000c4273571a",
+      "name": "Get a list",
+      "credentials": {
+        "clickUpApi": {
+          "id": "gvSnErpMEXSSwW8l",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.first().json.lists;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "7543f1f4-83be-44dd-a76e-5a876351fc4f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "team": "90121674042",
+        "space": "90127254428",
+        "folder": "901210714280",
+        "list": "={{ $json.id }}",
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        832,
+        0
+      ],
+      "id": "8dabdaf0-c3c4-4d2a-b3f2-04a6b5cc2bbb",
+      "name": "Get many tasks",
+      "credentials": {
+        "clickUpApi": {
+          "id": "gvSnErpMEXSSwW8l",
+          "name": "ClickUp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const task = item.json;\n  const dueDateMs = task.due_date ? parseInt(task.due_date, 10) : null;\n  const now = Date.now();\n  const dueDateHuman = dueDateMs\n    ? new Date(dueDateMs).toLocaleString()\n    : null;\n  const isOverdue = dueDateMs\n    ? dueDateMs < now\n    : false;\n  const assignees = task.assignees?.map(a => a.username).join(\", \") || \"Brak przypisania\";\n  \n  return {\n    json: {\n      space: $('Get a folder').first().json.space.name || null,\n      folder: task.folder?.name || null,\n      list: task.list?.name || null,\n      task_name: task.name || null,\n      is_overdue: isOverdue,\n      due_date: dueDateHuman,\n      assignees: assignees\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "f5ff1bbc-71e4-4dba-96ad-9bc934d8a27d",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dane wejściowe z poprzedniego węzła (np. HTTP Request, ClickUp node)\nconst tasks = $input.all().map(item => item.json);\n\n// Filtruj tylko przeterminowane zadania\nconst overdueTasks = tasks.filter(task => task.is_overdue === true);\n\n// Jeśli brak przeterminowanych — zakończ bez wysyłki\nif (overdueTasks.length === 0) {\n  return [{ json: { skip: true, html: null } }];\n}\n\n// Formatuj datę po polsku\nfunction formatDate(dateStr) {\n  const d = new Date(dateStr);\n  return d.toLocaleDateString('pl-PL', {\n    day: '2-digit',\n    month: '2-digit',\n    year: 'numeric',\n    hour: '2-digit',\n    minute: '2-digit'\n  });\n}\n\n// Generuj wiersze tabeli\nconst rows = overdueTasks.map(task => `\n  <tr>\n    <td style=\"padding:10px 14px;border-bottom:1px solid #f0e8e8;font-weight:500;color:#2c1a1a;\">\n      ${task.task_name}\n    </td>\n    <td style=\"padding:10px 14px;border-bottom:1px solid #f0e8e8;color:#555;\">\n      ${task.list}\n    </td>\n    <td style=\"padding:10px 14px;border-bottom:1px solid #f0e8e8;color:#a32d2d;font-weight:500;\">\n      ${formatDate(task.due_date)}\n    </td>\n    <td style=\"padding:10px 14px;border-bottom:1px solid #f0e8e8;color:#555;\">\n      ${task.assignees}\n    </td>\n  </tr>\n`).join('');\n\n// Buduj kompletny HTML maila\nconst html = `\n<!DOCTYPE html>\n<html lang=\"pl\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Przeterminowane zadania</title>\n</head>\n<body style=\"margin:0;padding:0;background:#f7f3f3;font-family:Arial,sans-serif;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f7f3f3;padding:32px 0;\">\n    <tr><td align=\"center\">\n      <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #f0dede;\">\n\n        <!-- Nagłówek -->\n        <tr>\n          <td style=\"background:#a32d2d;padding:24px 32px;\">\n            <p style=\"margin:0;font-size:11px;color:#f7c1c1;letter-spacing:2px;text-transform:uppercase;\">Powiadomienie</p>\n            <h1 style=\"margin:6px 0 0;font-size:22px;color:#ffffff;font-weight:600;\">\n              Przeterminowane zadania\n            </h1>\n          </td>\n        </tr>\n\n        <!-- Licznik -->\n        <tr>\n          <td style=\"padding:24px 32px 8px;\">\n            <p style=\"margin:0;font-size:14px;color:#555;\">\n              Znaleziono <strong style=\"color:#a32d2d;\">${overdueTasks.length}</strong>\n              ${overdueTasks.length === 1 ? 'przeterminowane zadanie' : 'przeterminowane zadania'} wymagające uwagi:\n            </p>\n          </td>\n        </tr>\n\n        <!-- Tabela zadań -->\n        <tr>\n          <td style=\"padding:16px 32px 32px;\">\n            <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;border:1px solid #f0dede;border-radius:6px;overflow:hidden;\">\n              <thead>\n                <tr style=\"background:#fcebeb;\">\n                  <th style=\"padding:10px 14px;text-align:left;font-size:11px;color:#a32d2d;text-transform:uppercase;letter-spacing:1px;font-weight:600;\">Zadanie</th>\n                  <th style=\"padding:10px 14px;text-align:left;font-size:11px;color:#a32d2d;text-transform:uppercase;letter-spacing:1px;font-weight:600;\">Projekt</th>\n                  <th style=\"padding:10px 14px;text-align:left;font-size:11px;color:#a32d2d;text-transform:uppercase;letter-spacing:1px;font-weight:600;\">Termin</th>\n                  <th style=\"padding:10px 14px;text-align:left;font-size:11px;color:#a32d2d;text-transform:uppercase;letter-spacing:1px;font-weight:600;\">Osoba</th>\n                </tr>\n              </thead>\n              <tbody>\n                ${rows}\n              </tbody>\n            </table>\n          </td>\n        </tr>\n\n        <!-- Stopka -->\n        <tr>\n          <td style=\"background:#f7f3f3;padding:16px 32px;border-top:1px solid #f0dede;\">\n            <p style=\"margin:0;font-size:12px;color:#999;text-align:center;\">\n              Wiadomość wygenerowana automatycznie •\n              ${new Date().toLocaleDateString('pl-PL', { day: '2-digit', month: 'long', year: 'numeric' })}\n            </p>\n          </td>\n        </tr>\n\n      </table>\n    </td></tr>\n  </table>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    skip: false,\n    html: html,\n    subject: `[${overdueTasks.length}] Przeterminowane zadania – ${new Date().toLocaleDateString('pl-PL')}`,\n    overdueCount: overdueTasks.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        0
+      ],
+      "id": "7783373e-c8d5-4583-84c6-c5243cf18b05",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "fromEmail": "szkolenie@easy-automate.online",
+        "toEmail": "kamil.fityka@easyautomate.pl",
+        "subject": "Zadania przedawnione",
+        "html": "={{ $json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "b3a3c962-8332-4b83-a349-3cb01d05da30",
+      "name": "Send an Email",
+      "webhookId": "ef8c0966-b4af-4a83-a30c-5c08512fc961",
+      "credentials": {
+        "smtp": {
+          "id": "CCkjtiu4brf23dCR",
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get a folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a folder": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a list": {
+      "main": [
+        [
+          {
+            "node": "Get many tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Get a list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many tasks": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1560ae59992da1376c4a40c4742448b2996b3e71ac857295f7192c93a44f163b"
+  }
+}

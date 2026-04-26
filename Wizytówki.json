@@ -1,0 +1,679 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f2ec9117-2b8c-4df3-8225-0dd0188eb654",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -3216,
+        352
+      ],
+      "id": "d11fa0c6-317f-4bad-8479-37f8d0703699",
+      "name": "Webhook",
+      "webhookId": "f2ec9117-2b8c-4df3-8225-0dd0188eb654"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "has-audio",
+              "leftValue": "={{ $binary.audio }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2992,
+        16
+      ],
+      "id": "bd1921b2-cf38-40a5-9cc5-f8d40941484e",
+      "name": "Czy jest audio?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "has-image_0",
+              "leftValue": "={{ $binary.image_0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2992,
+        352
+      ],
+      "id": "baae3b57-b1d8-4511-877b-f8babc5ad697",
+      "name": "Czy jest image_0?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "has-image_1",
+              "leftValue": "={{ $binary.image_1 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2992,
+        752
+      ],
+      "id": "c604dec6-399c-45b6-8326-ea1fabb8b642",
+      "name": "Czy jest image_1?"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -2544,
+        240
+      ],
+      "id": "8ddb22fc-b084-4954-8967-d2559030b0f0",
+      "name": "Poczekaj na wszystkie źródła"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "empty"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -944,
+        352
+      ],
+      "id": "cfea366d-d9b9-4c93-9063-387d0c2d3569",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "text": "Odczytaj wszystkie dane z wizytówki. Zwróć JSON z polami: card_name, card_company, card_email, card_phone, card_position, card_extra. Jeśli pola nie ma, wpisz null. Odpowiedz TYLKO jsonem, bez markdown. \nUżywaj języka polskiego.\nDane zwróć w takiej formie:\n{\n\"card_name\": \"\",\n\"card_company\": \"\",\n\"card_email\": null,\n\"card_phone\": null,\n\"card_position\": null,\n\"card_extra\": \"\"\n}",
+        "inputType": "base64",
+        "binaryPropertyName": "image_1",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -2768,
+        816
+      ],
+      "id": "8c04de09-ea4e-4296-afd2-06c58918cac0",
+      "name": "Vision – tył wizytówki",
+      "credentials": {
+        "openAiApi": {
+          "id": "JFSm5cJowdIPTkmF",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "text": "Odczytaj wszystkie dane z wizytówki. Zwróć JSON z polami: card_name, card_company, card_email, card_phone, card_position, card_extra. Jeśli pola nie ma, wpisz null. Odpowiedz TYLKO jsonem, bez markdown.\nUżywaj języka polskiego.\nDane zwróć w takiej formie:\n{\n\"card_name\": \"\",\n\"card_company\": \"\",\n\"card_email\": null,\n\"card_phone\": null,\n\"card_position\": null,\n\"card_extra\": \"\"\n}",
+        "inputType": "base64",
+        "binaryPropertyName": "image_0",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -2768,
+        432
+      ],
+      "id": "8872b849-52a1-4e4a-bb71-f14ba81e4cd8",
+      "name": "Vision – przód wizytówki",
+      "credentials": {
+        "openAiApi": {
+          "id": "JFSm5cJowdIPTkmF",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "audio",
+        "options": {
+          "language": "pl"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -2768,
+        -64
+      ],
+      "id": "445d4ba1-7f63-4345-8ac1-d80f8245591b",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "JFSm5cJowdIPTkmF",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const audioText = (() => {\n  try {\n    const t = $('Transcribe a recording').first()?.json?.text;\n    return (typeof t === 'string' && t.trim()) ? t.trim() : '';\n  } catch { return ''; }\n})();\n\nconst manual = (() => {\n  try {\n    return $('Poczekaj na wszystkie źródła').first().json.body\n        || $('Webhook').first().json.body\n        || {};\n  } catch { return {}; }\n})();\n\nfunction parseVision(nodeName) {\n  try {\n    // Próbuj różnych ścieżek dostępu\n    const item = $(nodeName).first().json;\n    \n    const raw = item?.content?.[0]?.text           // bezpośrednio { content: [...] }\n             || item?.[0]?.content?.[0]?.text       // jedna tablica [{ content: [...] }]\n             || item?.choices?.[0]?.message?.content\n             || '';\n    \n    if (!raw) return {};\n    const clean = raw.replace(/```json\\s*/gi,'').replace(/```/g,'').trim();\n    return JSON.parse(clean);\n  } catch { return {}; }\n}\n\nconst front = parseVision('Vision – przód wizytówki');\nconst back  = parseVision('Vision – tył wizytówki');\n\nfunction first(...vals) {\n  return vals.find(v => v !== null && v !== undefined && v !== '') ?? null;\n}\n\nconst notes = [manual.notes, audioText]\n  .filter(v => v && v.trim())\n  .join(' ') || null;\n\nconst card_extra = [front.card_extra, back.card_extra]\n  .filter(v => v && v.trim()).join('; ') || null;\n\nconst card = {\n  name:     first(manual.name,     front.card_name,     back.card_name),\n  company:  first(manual.company,  front.card_company,  back.card_company),\n  email:    first(manual.email,    front.card_email,    back.card_email),\n  phone:    first(manual.phone,    front.card_phone,    back.card_phone),\n  position: first(manual.position, front.card_position, back.card_position),\n  notes,\n  extra:    card_extra\n};\n\nconst hasData = card.name || card.email || card.phone || card.company || card.notes;\n\nif (!hasData) {\n  throw new Error('Brak danych: nie przesłano formularza, wizytówki ani nagrania.');\n}\n\nreturn [{\n  json: card\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2320,
+        352
+      ],
+      "id": "8d7951e9-9a6a-4c07-a635-abd79533aeee",
+      "name": "Zbierz dane (audio + wizytówka + ręczne)"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Jesteś asystentem strukturyzującym dane kontaktowe. Łączysz dane ręczne, transkrypcję głosową i dane z wizytówki. Priorytet: dane ręczne > wizytówka > transkrypcja. Odpowiedz WYŁĄCZNIE poprawnym JSONem bez markdown ani komentarzy.\nUżywaj języka polskiego."
+            },
+            {
+              "content": "=Dane wejściowe:\n{{ $json.toJsonString() }}\n\nZwróć JSON:\n{\n  \"name\": string | null,\n  \"company\": string | null,\n  \"email\": string | null,\n  \"phone\": string | null,\n  \"position\": string | null,\n  \"notes\": string | null,\n  \"voice_transcript\": string | null,\n  \"www\": string | null,\n  \"nip\": string | null,\n  \"regon\": string | null,\n  \"krs\": string | null,\n  \"addresses\": [\n    {\n      \"address_full\": string | null,\n      \"address_street\": string | null,\n      \"address_city\": string | null,\n      \"address_zip\": string | null,\n      \"label\": string | null\n    }\n  ]\n}\n\nZasady:\n- NIP/REGON/KRS: tylko cyfry, bez myślników i spacji.\n- www: bez http:// i bez trailing slash.\n- addresses: jeden obiekt na adres; jeśli brak adresów – pusta tablica [].\n- label: typ adresu (\"biuro\",\"siedziba\" itp.) lub null.\n- city: samo miasto, bez województwa.\n- zip: format XX-XXX."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -2096,
+        352
+      ],
+      "id": "2a58d1c0-ac16-4650-9333-5ae06d6ada52",
+      "name": "GPT – scal i ustrukturyzuj",
+      "credentials": {
+        "openAiApi": {
+          "id": "JFSm5cJowdIPTkmF",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsuj odpowiedź GPT do czystego JSON\nconst raw = $input.first().json.output?.[0]?.content?.[0]?.text\n         || $input.first().json.choices?.[0]?.message?.content\n         || '';\n\nlet parsed;\ntry {\n  const clean = raw.replace(/```json\\s*/gi,'').replace(/```/g,'').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  parsed = { _parse_error: raw };\n}\n\n// Walidacja minimum\nif (!parsed.name && !parsed.email && !parsed.phone) {\n  parsed._warning = 'Brak podstawowych danych kontaktowych';\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        352
+      ],
+      "id": "689260d9-67ed-4608-a509-417446aa2428",
+      "name": "Parse + waliduj JSON"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsuj odpowiedź GPT z polami podatkowymi\nconst raw = $input.first().json.output?.[0]?.content?.[0]?.text\n         || $input.first().json.choices?.[0]?.message?.content\n         || '';\n\nlet parsed;\ntry {\n  const clean = raw.replace(/```json\\s*/gi,'').replace(/```/g,'').trim();\n  parsed = JSON.parse(clean);\n} catch(e) {\n  parsed = { contact_tax_fields: {}, deal_tax_fields: {}, _parse_error: raw };\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1168,
+        432
+      ],
+      "id": "80d5e20f-d4b9-437d-8a1d-1294647a40d3",
+      "name": "Parse pola podatkowe"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Jesteś asystentem pobierającym publiczne dane rejestrowe polskich firm. Na podstawie podanych danych wyszukaj i uzupełnij pola podatkowe. Odpowiedz WYŁĄCZNIE poprawnym JSONem bez markdown ani komentarzy. Jeśli nie znasz wartości – wpisz null.\nUżywaj języka polskiego."
+            },
+            {
+              "content": "=Dane kontaktu:\nNazwa firmy: {{ $json.company }}\nNIP: {{ $json.nip }}\nREGON: {{ $json.regon }}\nKRS: {{ $json.krs }}\nAdres: {{ $json.addresses.toJsonString() }}\n\nUzupełnij lub potwierdź pola podatkowe/rejestrowe dla kontaktu (osoby) i dla szansy sprzedaży.\nZwróć JSON:\n{\n  \"contact_tax_fields\": {\n    \"nip\": string | null,\n    \"regon\": string | null,\n    \"krs\": string | null,\n    \"forma_prawna\": string | null,\n    \"data_rejestracji\": string | null,\n    \"status_vat\": string | null\n  },\n  \"deal_tax_fields\": {\n    \"wartosc_netto\": null,\n    \"waluta\": \"PLN\",\n    \"stawka_vat\": string | null,\n    \"numer_faktury\": null,\n    \"termin_platnosci_dni\": null,\n    \"uwagi_podatkowe\": string | null\n  }\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -1520,
+        432
+      ],
+      "id": "2fe3384d-990b-4b6f-9c39-2389b0939cfb",
+      "name": "GPT – pola podatkowe (kontakt + deal)",
+      "credentials": {
+        "openAiApi": {
+          "id": "JFSm5cJowdIPTkmF",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Połącz dane kontaktowe z polami podatkowymi\nconst contact = $('Parse + waliduj JSON').first().json;\nconst tax     = $('Parse pola podatkowe').first().json;\n\nconst nip    = contact.nip    || tax.contact_tax_fields?.nip    || null;\nconst regon  = contact.regon  || tax.contact_tax_fields?.regon  || null;\nconst krs    = contact.krs    || tax.contact_tax_fields?.krs    || null;\n\nreturn [{\n  json: {\n    ...contact,\n    nip, regon, krs,\n    contact_tax_fields: tax.contact_tax_fields ?? {},\n    deal_tax_fields:    tax.deal_tax_fields    ?? {}\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        352
+      ],
+      "id": "9b5858c0-8730-4f50-955f-3b5ba896498c",
+      "name": "Scal dane kontaktu z podatkowymi"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst orgName = (d.company && d.company.trim()) ? d.company.trim() : (d.name ? d.name.trim() : null);\nreturn [{ json: { ...d, _orgName: orgName } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        352
+      ],
+      "id": "7a3bb5cd-5335-4775-af2a-37d711e7edba",
+      "name": "Przygotuj nazwę organizacji"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2544,
+        480
+      ],
+      "id": "6f0d0835-a7eb-49d5-8bf2-1e37961c5a9b",
+      "name": "Respond to Webhook Error"
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -2320,
+        160
+      ],
+      "id": "f3ff36fe-b445-45cf-af9d-bb1617f901dd",
+      "name": "Respond to Webhook Succcess"
+    },
+    {
+      "parameters": {
+        "team": "90121674042",
+        "space": "90127254428",
+        "folder": "901210714280",
+        "list": "901217494605",
+        "name": "={{ $json.company }}",
+        "additionalFields": {
+          "content": ""
+        }
+      },
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        352
+      ],
+      "id": "626ee03d-7acf-4624-ad53-046fe351b528",
+      "name": "Create a task",
+      "credentials": {
+        "clickUpApi": {
+          "id": "gvSnErpMEXSSwW8l",
+          "name": "ClickUp account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Czy jest image_1?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Czy jest image_0?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Czy jest audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Czy jest audio?": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Poczekaj na wszystkie źródła",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Czy jest image_0?": {
+      "main": [
+        [
+          {
+            "node": "Vision – przód wizytówki",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Poczekaj na wszystkie źródła",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Czy jest image_1?": {
+      "main": [
+        [
+          {
+            "node": "Vision – tył wizytówki",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Poczekaj na wszystkie źródła",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Poczekaj na wszystkie źródła": {
+      "main": [
+        [
+          {
+            "node": "Zbierz dane (audio + wizytówka + ręczne)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook Succcess",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Scal dane kontaktu z podatkowymi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision – tył wizytówki": {
+      "main": [
+        [
+          {
+            "node": "Poczekaj na wszystkie źródła",
+            "type": "main",
+            "index": 2
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision – przód wizytówki": {
+      "main": [
+        [
+          {
+            "node": "Poczekaj na wszystkie źródła",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Poczekaj na wszystkie źródła",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zbierz dane (audio + wizytówka + ręczne)": {
+      "main": [
+        [
+          {
+            "node": "GPT – scal i ustrukturyzuj",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT – scal i ustrukturyzuj": {
+      "main": [
+        [
+          {
+            "node": "Parse + waliduj JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + waliduj JSON": {
+      "main": [
+        [
+          {
+            "node": "GPT – pola podatkowe (kontakt + deal)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse pola podatkowe": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "GPT – pola podatkowe (kontakt + deal)": {
+      "main": [
+        [
+          {
+            "node": "Parse pola podatkowe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scal dane kontaktu z podatkowymi": {
+      "main": [
+        [
+          {
+            "node": "Przygotuj nazwę organizacji",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Przygotuj nazwę organizacji": {
+      "main": [
+        [
+          {
+            "node": "Create a task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1560ae59992da1376c4a40c4742448b2996b3e71ac857295f7192c93a44f163b"
+  }
+}
