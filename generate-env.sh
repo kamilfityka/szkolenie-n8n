@@ -2,7 +2,8 @@
 # Czyta participants.csv i generuje:
 #   .env.prod       — zmienne dla docker-compose.prod.yaml (NIE commituj!)
 #   access-list.txt — tabela URL / email / hasło dla uczestników
-set -euo pipefail
+set -eu
+if (set -o pipefail) 2>/dev/null; then set -o pipefail; fi
 
 CSV="participants.csv"
 ENV_OUT=".env.prod"
