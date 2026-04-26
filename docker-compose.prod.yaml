@@ -1,0 +1,737 @@
+version: '3.8'
+
+# =============================================================================
+# SZKOLENIE n8n — 20 izolowanych instancji
+# =============================================================================
+# Architektura:
+#   - 1x PostgreSQL (20 osobnych baz danych: n8n_01 … n8n_20)
+#   - 1x Redis (współdzielony, osobne prefiksy kolejek)
+#   - 20x n8n (porty 5678–5697)
+#   - 20x n8n-worker (jeden worker per instancja)
+#
+# Uruchomienie:
+#   cp .env.prod.example .env.prod
+#   # edytuj .env.prod (VPS_IP, hasła, klucze)
+#   docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d
+# =============================================================================
+
+volumes:
+  db_storage:
+  redis_storage:
+  n8n_storage_01:
+  n8n_storage_02:
+  n8n_storage_03:
+  n8n_storage_04:
+  n8n_storage_05:
+  n8n_storage_06:
+  n8n_storage_07:
+  n8n_storage_08:
+  n8n_storage_09:
+  n8n_storage_10:
+  n8n_storage_11:
+  n8n_storage_12:
+  n8n_storage_13:
+  n8n_storage_14:
+  n8n_storage_15:
+  n8n_storage_16:
+  n8n_storage_17:
+  n8n_storage_18:
+  n8n_storage_19:
+  n8n_storage_20:
+
+# ---------------------------------------------------------------------------
+# Shared anchors
+# ---------------------------------------------------------------------------
+x-n8n-base: &n8n-base
+  image: docker.n8n.io/n8nio/n8n
+  restart: always
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+x-n8n-env: &n8n-env
+  DB_TYPE: postgresdb
+  DB_POSTGRESDB_HOST: postgres
+  DB_POSTGRESDB_PORT: "5432"
+  DB_POSTGRESDB_USER: ${N8N_DB_USER}
+  DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+  N8N_HOST: ${VPS_IP}
+  N8N_PROTOCOL: http
+  QUEUE_BULL_REDIS_HOST: redis
+  QUEUE_HEALTH_CHECK_ACTIVE: "true"
+  NODE_FUNCTION_ALLOW_BUILTIN: crypto
+
+# ===========================================================================
+# INFRASTRUKTURA
+# ===========================================================================
+services:
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+      N8N_DB_USER: ${N8N_DB_USER}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD}
+    volumes:
+      - db_storage:/var/lib/postgresql/data
+      - ./init-data-prod.sh:/docker-entrypoint-initdb.d/init-data.sh
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:6-alpine
+    restart: always
+    volumes:
+      - redis_storage:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ===========================================================================
+  # UCZESTNIK 01 — port 5678
+  # ===========================================================================
+  n8n-01:
+    <<: *n8n-base
+    ports:
+      - "5678:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_01
+      N8N_ENCRYPTION_KEY: ${N8N_01_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5678/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-01
+    volumes:
+      - n8n_storage_01:/home/node/.n8n
+
+  n8n-worker-01:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_01
+      N8N_ENCRYPTION_KEY: ${N8N_01_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-01
+    volumes:
+      - n8n_storage_01:/home/node/.n8n
+    depends_on:
+      - n8n-01
+
+  # ===========================================================================
+  # UCZESTNIK 02 — port 5679
+  # ===========================================================================
+  n8n-02:
+    <<: *n8n-base
+    ports:
+      - "5679:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_02
+      N8N_ENCRYPTION_KEY: ${N8N_02_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5679/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-02
+    volumes:
+      - n8n_storage_02:/home/node/.n8n
+
+  n8n-worker-02:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_02
+      N8N_ENCRYPTION_KEY: ${N8N_02_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-02
+    volumes:
+      - n8n_storage_02:/home/node/.n8n
+    depends_on:
+      - n8n-02
+
+  # ===========================================================================
+  # UCZESTNIK 03 — port 5680
+  # ===========================================================================
+  n8n-03:
+    <<: *n8n-base
+    ports:
+      - "5680:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_03
+      N8N_ENCRYPTION_KEY: ${N8N_03_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5680/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-03
+    volumes:
+      - n8n_storage_03:/home/node/.n8n
+
+  n8n-worker-03:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_03
+      N8N_ENCRYPTION_KEY: ${N8N_03_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-03
+    volumes:
+      - n8n_storage_03:/home/node/.n8n
+    depends_on:
+      - n8n-03
+
+  # ===========================================================================
+  # UCZESTNIK 04 — port 5681
+  # ===========================================================================
+  n8n-04:
+    <<: *n8n-base
+    ports:
+      - "5681:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_04
+      N8N_ENCRYPTION_KEY: ${N8N_04_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5681/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-04
+    volumes:
+      - n8n_storage_04:/home/node/.n8n
+
+  n8n-worker-04:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_04
+      N8N_ENCRYPTION_KEY: ${N8N_04_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-04
+    volumes:
+      - n8n_storage_04:/home/node/.n8n
+    depends_on:
+      - n8n-04
+
+  # ===========================================================================
+  # UCZESTNIK 05 — port 5682
+  # ===========================================================================
+  n8n-05:
+    <<: *n8n-base
+    ports:
+      - "5682:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_05
+      N8N_ENCRYPTION_KEY: ${N8N_05_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5682/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-05
+    volumes:
+      - n8n_storage_05:/home/node/.n8n
+
+  n8n-worker-05:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_05
+      N8N_ENCRYPTION_KEY: ${N8N_05_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-05
+    volumes:
+      - n8n_storage_05:/home/node/.n8n
+    depends_on:
+      - n8n-05
+
+  # ===========================================================================
+  # UCZESTNIK 06 — port 5683
+  # ===========================================================================
+  n8n-06:
+    <<: *n8n-base
+    ports:
+      - "5683:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_06
+      N8N_ENCRYPTION_KEY: ${N8N_06_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5683/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-06
+    volumes:
+      - n8n_storage_06:/home/node/.n8n
+
+  n8n-worker-06:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_06
+      N8N_ENCRYPTION_KEY: ${N8N_06_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-06
+    volumes:
+      - n8n_storage_06:/home/node/.n8n
+    depends_on:
+      - n8n-06
+
+  # ===========================================================================
+  # UCZESTNIK 07 — port 5684
+  # ===========================================================================
+  n8n-07:
+    <<: *n8n-base
+    ports:
+      - "5684:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_07
+      N8N_ENCRYPTION_KEY: ${N8N_07_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5684/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-07
+    volumes:
+      - n8n_storage_07:/home/node/.n8n
+
+  n8n-worker-07:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_07
+      N8N_ENCRYPTION_KEY: ${N8N_07_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-07
+    volumes:
+      - n8n_storage_07:/home/node/.n8n
+    depends_on:
+      - n8n-07
+
+  # ===========================================================================
+  # UCZESTNIK 08 — port 5685
+  # ===========================================================================
+  n8n-08:
+    <<: *n8n-base
+    ports:
+      - "5685:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_08
+      N8N_ENCRYPTION_KEY: ${N8N_08_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5685/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-08
+    volumes:
+      - n8n_storage_08:/home/node/.n8n
+
+  n8n-worker-08:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_08
+      N8N_ENCRYPTION_KEY: ${N8N_08_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-08
+    volumes:
+      - n8n_storage_08:/home/node/.n8n
+    depends_on:
+      - n8n-08
+
+  # ===========================================================================
+  # UCZESTNIK 09 — port 5686
+  # ===========================================================================
+  n8n-09:
+    <<: *n8n-base
+    ports:
+      - "5686:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_09
+      N8N_ENCRYPTION_KEY: ${N8N_09_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5686/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-09
+    volumes:
+      - n8n_storage_09:/home/node/.n8n
+
+  n8n-worker-09:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_09
+      N8N_ENCRYPTION_KEY: ${N8N_09_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-09
+    volumes:
+      - n8n_storage_09:/home/node/.n8n
+    depends_on:
+      - n8n-09
+
+  # ===========================================================================
+  # UCZESTNIK 10 — port 5687
+  # ===========================================================================
+  n8n-10:
+    <<: *n8n-base
+    ports:
+      - "5687:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_10
+      N8N_ENCRYPTION_KEY: ${N8N_10_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5687/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-10
+    volumes:
+      - n8n_storage_10:/home/node/.n8n
+
+  n8n-worker-10:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_10
+      N8N_ENCRYPTION_KEY: ${N8N_10_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-10
+    volumes:
+      - n8n_storage_10:/home/node/.n8n
+    depends_on:
+      - n8n-10
+
+  # ===========================================================================
+  # UCZESTNIK 11 — port 5688
+  # ===========================================================================
+  n8n-11:
+    <<: *n8n-base
+    ports:
+      - "5688:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_11
+      N8N_ENCRYPTION_KEY: ${N8N_11_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5688/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-11
+    volumes:
+      - n8n_storage_11:/home/node/.n8n
+
+  n8n-worker-11:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_11
+      N8N_ENCRYPTION_KEY: ${N8N_11_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-11
+    volumes:
+      - n8n_storage_11:/home/node/.n8n
+    depends_on:
+      - n8n-11
+
+  # ===========================================================================
+  # UCZESTNIK 12 — port 5689
+  # ===========================================================================
+  n8n-12:
+    <<: *n8n-base
+    ports:
+      - "5689:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_12
+      N8N_ENCRYPTION_KEY: ${N8N_12_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5689/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-12
+    volumes:
+      - n8n_storage_12:/home/node/.n8n
+
+  n8n-worker-12:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_12
+      N8N_ENCRYPTION_KEY: ${N8N_12_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-12
+    volumes:
+      - n8n_storage_12:/home/node/.n8n
+    depends_on:
+      - n8n-12
+
+  # ===========================================================================
+  # UCZESTNIK 13 — port 5690
+  # ===========================================================================
+  n8n-13:
+    <<: *n8n-base
+    ports:
+      - "5690:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_13
+      N8N_ENCRYPTION_KEY: ${N8N_13_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5690/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-13
+    volumes:
+      - n8n_storage_13:/home/node/.n8n
+
+  n8n-worker-13:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_13
+      N8N_ENCRYPTION_KEY: ${N8N_13_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-13
+    volumes:
+      - n8n_storage_13:/home/node/.n8n
+    depends_on:
+      - n8n-13
+
+  # ===========================================================================
+  # UCZESTNIK 14 — port 5691
+  # ===========================================================================
+  n8n-14:
+    <<: *n8n-base
+    ports:
+      - "5691:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_14
+      N8N_ENCRYPTION_KEY: ${N8N_14_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5691/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-14
+    volumes:
+      - n8n_storage_14:/home/node/.n8n
+
+  n8n-worker-14:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_14
+      N8N_ENCRYPTION_KEY: ${N8N_14_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-14
+    volumes:
+      - n8n_storage_14:/home/node/.n8n
+    depends_on:
+      - n8n-14
+
+  # ===========================================================================
+  # UCZESTNIK 15 — port 5692
+  # ===========================================================================
+  n8n-15:
+    <<: *n8n-base
+    ports:
+      - "5692:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_15
+      N8N_ENCRYPTION_KEY: ${N8N_15_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5692/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-15
+    volumes:
+      - n8n_storage_15:/home/node/.n8n
+
+  n8n-worker-15:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_15
+      N8N_ENCRYPTION_KEY: ${N8N_15_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-15
+    volumes:
+      - n8n_storage_15:/home/node/.n8n
+    depends_on:
+      - n8n-15
+
+  # ===========================================================================
+  # UCZESTNIK 16 — port 5693
+  # ===========================================================================
+  n8n-16:
+    <<: *n8n-base
+    ports:
+      - "5693:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_16
+      N8N_ENCRYPTION_KEY: ${N8N_16_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5693/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-16
+    volumes:
+      - n8n_storage_16:/home/node/.n8n
+
+  n8n-worker-16:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_16
+      N8N_ENCRYPTION_KEY: ${N8N_16_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-16
+    volumes:
+      - n8n_storage_16:/home/node/.n8n
+    depends_on:
+      - n8n-16
+
+  # ===========================================================================
+  # UCZESTNIK 17 — port 5694
+  # ===========================================================================
+  n8n-17:
+    <<: *n8n-base
+    ports:
+      - "5694:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_17
+      N8N_ENCRYPTION_KEY: ${N8N_17_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5694/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-17
+    volumes:
+      - n8n_storage_17:/home/node/.n8n
+
+  n8n-worker-17:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_17
+      N8N_ENCRYPTION_KEY: ${N8N_17_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-17
+    volumes:
+      - n8n_storage_17:/home/node/.n8n
+    depends_on:
+      - n8n-17
+
+  # ===========================================================================
+  # UCZESTNIK 18 — port 5695
+  # ===========================================================================
+  n8n-18:
+    <<: *n8n-base
+    ports:
+      - "5695:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_18
+      N8N_ENCRYPTION_KEY: ${N8N_18_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5695/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-18
+    volumes:
+      - n8n_storage_18:/home/node/.n8n
+
+  n8n-worker-18:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_18
+      N8N_ENCRYPTION_KEY: ${N8N_18_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-18
+    volumes:
+      - n8n_storage_18:/home/node/.n8n
+    depends_on:
+      - n8n-18
+
+  # ===========================================================================
+  # UCZESTNIK 19 — port 5696
+  # ===========================================================================
+  n8n-19:
+    <<: *n8n-base
+    ports:
+      - "5696:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_19
+      N8N_ENCRYPTION_KEY: ${N8N_19_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5696/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-19
+    volumes:
+      - n8n_storage_19:/home/node/.n8n
+
+  n8n-worker-19:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_19
+      N8N_ENCRYPTION_KEY: ${N8N_19_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-19
+    volumes:
+      - n8n_storage_19:/home/node/.n8n
+    depends_on:
+      - n8n-19
+
+  # ===========================================================================
+  # UCZESTNIK 20 — port 5697
+  # ===========================================================================
+  n8n-20:
+    <<: *n8n-base
+    ports:
+      - "5697:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_20
+      N8N_ENCRYPTION_KEY: ${N8N_20_ENCRYPTION_KEY}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP}:5697/
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-20
+    volumes:
+      - n8n_storage_20:/home/node/.n8n
+
+  n8n-worker-20:
+    <<: *n8n-base
+    command: worker
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_20
+      N8N_ENCRYPTION_KEY: ${N8N_20_ENCRYPTION_KEY}
+      EXECUTIONS_MODE: queue
+      QUEUE_BULL_PREFIX: n8n-20
+    volumes:
+      - n8n_storage_20:/home/node/.n8n
+    depends_on:
+      - n8n-20
