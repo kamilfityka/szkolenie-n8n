@@ -9,28 +9,30 @@ if [ -z "${N8N_DB_USER:-}" ] || [ -z "${N8N_DB_PASSWORD:-}" ]; then
   exit 1
 fi
 
-echo "SETUP START: tworzę użytkownika '${N8N_DB_USER}'..."
+echo "SETUP START: tworzę użytkownika '${N8N_DB_USER}' (POSTGRES_USER='${POSTGRES_USER}')..."
 
 # Utwórz użytkownika; jeśli już istnieje — zaktualizuj hasło.
-if psql --username "$POSTGRES_USER" \
-     -c "CREATE USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';" 2>/dev/null; then
+# ON_ERROR_STOP=1 sprawia że psql zwraca kod != 0 przy błędzie SQL (np. "user already exists").
+if psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
+     -c "CREATE USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';"; then
   echo "Użytkownik '${N8N_DB_USER}' utworzony."
 else
-  if ! psql --username "$POSTGRES_USER" \
+  echo "CREATE USER nie powiodło się (użytkownik już istnieje lub błąd). Próbuję ALTER USER..."
+  if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
        -c "ALTER USER ${N8N_DB_USER} WITH PASSWORD '${N8N_DB_PASSWORD}';"; then
     echo "SETUP ERROR: nie można utworzyć ani zaktualizować użytkownika '${N8N_DB_USER}'!"
     exit 1
   fi
-  echo "Użytkownik '${N8N_DB_USER}' już istniał — zaktualizowano hasło."
+  echo "Hasło użytkownika '${N8N_DB_USER}' zaktualizowane."
 fi
 
 for i in $(seq -w 1 20); do
   DB="n8n_${i}"
   echo "Tworzę bazę: $DB"
   psql --username "$POSTGRES_USER" -c "CREATE DATABASE ${DB};" 2>/dev/null || true
-  psql --username "$POSTGRES_USER" \
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" \
     -c "GRANT ALL PRIVILEGES ON DATABASE ${DB} TO ${N8N_DB_USER};"
-  psql --username "$POSTGRES_USER" --dbname "$DB" \
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$DB" \
     -c "GRANT CREATE ON SCHEMA public TO ${N8N_DB_USER};"
 done
 
