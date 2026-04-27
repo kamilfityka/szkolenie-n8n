@@ -1,5 +1,5 @@
 # =============================================================================
-# SZKOLENIE n8n — 20 izolowanych instancji
+# SZKOLENIE n8n — 22 izolowane instancje
 # =============================================================================
 # Uruchomienie:
 #   1. Uzupełnij participants.csv
@@ -30,6 +30,8 @@ volumes:
   n8n_storage_18:
   n8n_storage_19:
   n8n_storage_20:
+  n8n_storage_21:
+  n8n_storage_22:
 
 # ---------------------------------------------------------------------------
 # Shared anchors
@@ -433,3 +435,39 @@ services:
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_20_ADMIN_PASSWORD:-}
     volumes:
       - n8n_storage_20:/home/node/.n8n
+
+  # ===========================================================================
+  # UCZESTNIK 21 — port 5698
+  # ===========================================================================
+  n8n-21:
+    <<: *n8n-base
+    ports:
+      - "5698:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_21
+      N8N_ENCRYPTION_KEY: ${N8N_21_ENCRYPTION_KEY:-}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP:-}:5698/
+      N8N_DEFAULT_ADMIN_EMAIL: ${N8N_21_ADMIN_EMAIL:-}
+      N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_21_ADMIN_PASSWORD:-}
+    volumes:
+      - n8n_storage_21:/home/node/.n8n
+
+  # ===========================================================================
+  # UCZESTNIK 22 — port 5699
+  # ===========================================================================
+  n8n-22:
+    <<: *n8n-base
+    ports:
+      - "5699:5678"
+    environment:
+      <<: *n8n-env
+      DB_POSTGRESDB_DATABASE: n8n_22
+      N8N_ENCRYPTION_KEY: ${N8N_22_ENCRYPTION_KEY:-}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: http://${VPS_IP:-}:5699/
+      N8N_DEFAULT_ADMIN_EMAIL: ${N8N_22_ADMIN_EMAIL:-}
+      N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_22_ADMIN_PASSWORD:-}
+    volumes:
+      - n8n_storage_22:/home/node/.n8n

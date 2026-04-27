@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Tworzy jednego użytkownika n8n oraz 20 osobnych baz danych (po jednej per uczestnik).
+# Tworzy jednego użytkownika n8n oraz 22 osobne bazy danych (po jednej per uczestnik).
 # Zmienne N8N_DB_USER i N8N_DB_PASSWORD muszą być ustawione w środowisku kontenera.
 # Skrypt jest idempotentny — bezpieczny przy ponownym uruchomieniu z istniejącym woluminem.
 
@@ -26,7 +26,7 @@ else
   echo "Hasło użytkownika '${N8N_DB_USER}' zaktualizowane."
 fi
 
-for i in $(seq -w 1 20); do
+for i in $(seq -w 1 22); do
   DB="n8n_${i}"
   echo "Tworzę bazę: $DB"
   psql --username "$POSTGRES_USER" --dbname postgres -c "CREATE DATABASE ${DB};" 2>/dev/null || true
@@ -36,4 +36,4 @@ for i in $(seq -w 1 20); do
     -c "GRANT CREATE ON SCHEMA public TO ${N8N_DB_USER};"
 done
 
-echo "SETUP DONE: utworzono użytkownika '${N8N_DB_USER}' i 20 baz danych n8n_01…n8n_20."
+echo "SETUP DONE: utworzono użytkownika '${N8N_DB_USER}' i 22 bazy danych n8n_01…n8n_22."
