@@ -6,8 +6,6 @@ volumes:
   redis_storage:
 
 networks:
-  nginx-proxy-manager_default:
-    external: true
   default:
 
 x-shared: &shared
@@ -77,7 +75,6 @@ services:
       - "5678"
     networks:
       - default
-      - nginx-proxy-manager_default
 
   n8n-worker:
     <<: *shared
