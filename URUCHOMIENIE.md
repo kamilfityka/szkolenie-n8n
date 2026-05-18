@@ -2,14 +2,16 @@
 
 ## Co dostaniesz
 
-20 izolowanych instancji n8n, każda na osobnym porcie, z osobną bazą danych i kontem użytkownika. Każdy uczestnik dostaje swój URL, login i hasło.
+22 izolowane instancje n8n, każda na osobnym subpath HTTPS (`/01/` … `/22/`),
+z osobną bazą danych i kontem użytkownika. Wszystko za jednym nginx na porcie
+443 z SSL. Każdy uczestnik dostaje swój URL, login i hasło.
 
 ---
 
 ## Wymagania
 
 - VPS z Ubuntu 24 / 25 (min. 12 GB RAM — rekomendowany vroot_JUMP! lub OVH VPS-2)
-- Dostęp SSH do serwera
+- Dostęp SSH do serwera (publiczne IP, np. `51.83.32.60`)
 - Zainstalowany Git na swoim komputerze
 
 ---
@@ -19,7 +21,7 @@
 Zaloguj się przez SSH:
 
 ```bash
-ssh root@TWOJ_IP_SERWERA
+ssh root@51.83.32.60
 ```
 
 Zainstaluj Docker:
@@ -60,11 +62,12 @@ Format pliku:
 nr,name,email
 01,Jan Kowalski,jan@firma.pl
 02,Anna Nowak,anna@firma.pl
-03,Piotr Wiśniewski,piotr@firma.pl
 ...
+22,Ostatni Uczestnik,ostatni@firma.pl
 ```
 
-> **Uwaga:** numery muszą być od `01` do `20` i muszą odpowiadać kolejności — uczestnik `01` dostanie port `5678`, uczestnik `02` port `5679` itd.
+> **Uwaga:** numery muszą być od `01` do `22` i muszą odpowiadać kolejności —
+> uczestnik `01` dostanie URL `https://51.83.32.60/01/`, uczestnik `02` → `/02/` itd.
 
 Zapisz plik: `Ctrl+O`, `Enter`, `Ctrl+X`
 
@@ -79,56 +82,40 @@ bash generate-env.sh
 Skrypt zapyta czy nadpisać istniejący plik — wpisz `t` i Enter.
 
 Powstaną dwa pliki:
-- `.env.prod` — hasła i klucze szyfrowania (nie udostępniaj!)
-- `access-list.txt` — tabela dostępów dla uczestników
+- `.env.prod` — hasła i klucze szyfrowania (nie udostępniaj!).
+  `VPS_IP` jest już ustawione na `51.83.32.60` — zmień jeśli używasz innego adresu.
+- `access-list.txt` — tabela dostępów dla uczestników z gotowymi URL-ami HTTPS.
 
 ---
 
-## KROK 5 — Wpisz adres IP serwera
+## KROK 5 — Wygeneruj certyfikat SSL
 
 ```bash
-nano .env.prod
+bash generate-certs.sh
 ```
 
-Znajdź linię:
+Skrypt odczyta `VPS_IP` z `.env.prod` i zapisze self-signed certyfikat
+w `nginx/certs/cert.pem` + `key.pem` (ważność 365 dni).
 
-```
-VPS_IP=CHANGE_ME
-```
-
-Zamień `CHANGE_ME` na publiczny adres IP serwera (sprawdzisz go w panelu OVH/vroot lub komendą `curl ifconfig.me`):
-
-```
-VPS_IP=1.2.3.4
-```
-
-Zapisz plik: `Ctrl+O`, `Enter`, `Ctrl+X`
+> Przeglądarka pokaże ostrzeżenie o self-signed cert — kliknij
+> „Zaawansowane" → „Przejdź do strony" lub dodaj wyjątek.
 
 ---
 
-## KROK 6 — Zaktualizuj access-list.txt
+## KROK 6 — Otwórz porty w firewallu
 
-Po wpisaniu IP otwórz `access-list.txt` i ręcznie zastąp `VPS_IP` rzeczywistym adresem — wtedy masz gotową tabelę z prawdziwymi linkami do wydruku.
-
-```bash
-sed -i 's/VPS_IP/1.2.3.4/g' access-list.txt
-```
-
-(zamień `1.2.3.4` na swój adres IP)
-
----
-
-## KROK 7 — Otwórz porty w firewallu
+Nginx terminuje SSL na 443, więc otwieramy tylko 80/443 (plus SSH):
 
 ```bash
 ufw allow 22
-ufw allow 5678:5697/tcp
+ufw allow 80
+ufw allow 443
 ufw enable
 ```
 
 ---
 
-## KROK 8 — Uruchom wszystkie instancje
+## KROK 7 — Uruchom wszystkie instancje
 
 ```bash
 docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d
@@ -142,25 +129,24 @@ Sprawdź czy wszystko działa:
 docker compose -f docker-compose.prod.yaml ps
 ```
 
-Wszystkie kontenery powinny mieć status `running`. Jeśli któryś ma `starting` — poczekaj chwilę i sprawdź ponownie.
+Wszystkie 22 kontenery n8n + nginx + postgres powinny mieć status `running`.
 
 ---
 
-## KROK 9 — Weryfikacja
+## KROK 8 — Weryfikacja
 
-Otwórz w przeglądarce adres jednej instancji:
+Otwórz w przeglądarce adres pierwszej instancji:
 
 ```
-http://TWOJ_IP:5678
+https://51.83.32.60/01/
 ```
 
-Powinien pojawić się ekran logowania n8n. Zaloguj się danymi uczestnika nr 01 z `access-list.txt`.
+Powinien pojawić się ekran logowania n8n. Zaloguj się danymi uczestnika nr 01
+z `access-list.txt`.
 
 ---
 
-## KROK 10 — Rozdaj dostępy uczestnikom
-
-Otwórz `access-list.txt`:
+## KROK 9 — Rozdaj dostępy uczestnikom
 
 ```bash
 cat access-list.txt
@@ -169,8 +155,8 @@ cat access-list.txt
 Wydrukuj lub przepisz każdemu uczestnikowi jego wiersz:
 
 ```
-Nr  Imię i Nazwisko   URL                      Login              Hasło
-01  Jan Kowalski      http://1.2.3.4:5678      jan@firma.pl       xYz123abc
+Nr  Imię i Nazwisko        URL (HTTPS)                  Login (e-mail)     Hasło
+01  Jan Kowalski           https://51.83.32.60/01/      jan@firma.pl       xYz123abc
 ```
 
 ---
@@ -195,37 +181,45 @@ docker compose -f docker-compose.prod.yaml down -v
 
 ## Przydatne komendy
 
-| Co chcesz zrobić | Komenda |
-|---|---|
-| Sprawdzić logi instancji | `docker logs n8n-01` |
-| Zrestartować jedną instancję | `docker restart n8n-01` |
-| Sprawdzić zużycie RAM | `docker stats` |
-| Sprawdzić wolne miejsce | `df -h` |
-| Zobaczyć IP serwera | `curl ifconfig.me` |
+| Co chcesz zrobić                | Komenda |
+|---------------------------------|---------|
+| Sprawdzić logi instancji        | `docker logs n8n-01` |
+| Zrestartować jedną instancję    | `docker restart n8n-01` |
+| Zrestartować nginx              | `docker restart $(docker ps -qf name=nginx)` |
+| Sprawdzić zużycie RAM           | `docker stats` |
+| Sprawdzić wolne miejsce         | `df -h` |
+| Zobaczyć IP serwera             | `curl ifconfig.me` |
 
 ---
 
-## Mapa portów
+## Mapa URL
 
-| Uczestnik | Port | URL |
-|---|---|---|
-| 01 | 5678 | http://IP:5678 |
-| 02 | 5679 | http://IP:5679 |
-| 03 | 5680 | http://IP:5680 |
-| 04 | 5681 | http://IP:5681 |
-| 05 | 5682 | http://IP:5682 |
-| 06 | 5683 | http://IP:5683 |
-| 07 | 5684 | http://IP:5684 |
-| 08 | 5685 | http://IP:5685 |
-| 09 | 5686 | http://IP:5686 |
-| 10 | 5687 | http://IP:5687 |
-| 11 | 5688 | http://IP:5688 |
-| 12 | 5689 | http://IP:5689 |
-| 13 | 5690 | http://IP:5690 |
-| 14 | 5691 | http://IP:5691 |
-| 15 | 5692 | http://IP:5692 |
-| 16 | 5693 | http://IP:5693 |
-| 17 | 5694 | http://IP:5694 |
-| 18 | 5695 | http://IP:5695 |
-| 19 | 5696 | http://IP:5696 |
-| 20 | 5697 | http://IP:5697 |
+Wszystkie instancje są dostępne po HTTPS na porcie 443, routing po ścieżce:
+
+| Uczestnik | URL                            |
+|-----------|--------------------------------|
+| 01        | https://51.83.32.60/01/        |
+| 02        | https://51.83.32.60/02/        |
+| 03        | https://51.83.32.60/03/        |
+| 04        | https://51.83.32.60/04/        |
+| 05        | https://51.83.32.60/05/        |
+| 06        | https://51.83.32.60/06/        |
+| 07        | https://51.83.32.60/07/        |
+| 08        | https://51.83.32.60/08/        |
+| 09        | https://51.83.32.60/09/        |
+| 10        | https://51.83.32.60/10/        |
+| 11        | https://51.83.32.60/11/        |
+| 12        | https://51.83.32.60/12/        |
+| 13        | https://51.83.32.60/13/        |
+| 14        | https://51.83.32.60/14/        |
+| 15        | https://51.83.32.60/15/        |
+| 16        | https://51.83.32.60/16/        |
+| 17        | https://51.83.32.60/17/        |
+| 18        | https://51.83.32.60/18/        |
+| 19        | https://51.83.32.60/19/        |
+| 20        | https://51.83.32.60/20/        |
+| 21        | https://51.83.32.60/21/        |
+| 22        | https://51.83.32.60/22/        |
+
+> Bezpośrednie porty `5678`–`5699` są też wystawione przez Docker (HTTP, bez SSL),
+> ale do szkolenia używamy **wyłącznie** URL-i HTTPS powyżej.

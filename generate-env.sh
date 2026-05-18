@@ -32,7 +32,7 @@ N8N_DB_USER=n8n_user
 N8N_DB_PASSWORD=${N8N_DB_PASS}
 
 # Ustaw publiczny adres IP lub domenę serwera (bez http://, bez portu):
-VPS_IP=CHANGE_ME
+VPS_IP=51.83.32.60
 
 EOF
 
@@ -40,8 +40,8 @@ cat > "$ACCESS_OUT" <<EOF
 Lista dostępów — SZKOLENIE n8n
 Wygenerowano: $(date)
 
-Nr  Imię i Nazwisko        URL                          Login (e-mail)                Hasło
---- ---------------------- ---------------------------- ----------------------------- ----------------
+Nr  Imię i Nazwisko        URL (HTTPS)                       Login (e-mail)                Hasło
+--- ---------------------- --------------------------------- ----------------------------- ----------------
 EOF
 
 while IFS=, read -r nr name email; do
@@ -64,8 +64,9 @@ N8N_${NUM}_ADMIN_PASSWORD=${PASS}
 
 EOF
 
-  printf "%-3s %-22s http://VPS_IP:%-5s %-29s %s\n" \
-    "${NUM}" "${NAME}" "${PORT}" "${EMAIL}" "${PASS}" >> "$ACCESS_OUT"
+  URL="https://VPS_IP/${NUM}/"
+  printf "%-3s %-22s %-33s %-29s %s\n" \
+    "${NUM}" "${NAME}" "${URL}" "${EMAIL}" "${PASS}" >> "$ACCESS_OUT"
 
 done < "$CSV"
 
@@ -75,15 +76,20 @@ cat >> "$ACCESS_OUT" <<'EOF'
 Zastąp VPS_IP rzeczywistym adresem IP serwera przed wysłaniem uczestnikom.
 EOF
 
-# zamień placeholder VPS_IP w access-list na rzeczywisty, jeśli ustawiony
-if grep -q "^VPS_IP=CHANGE_ME" "$ENV_OUT" 2>/dev/null; then
-  echo ""
-  echo "────────────────────────────────────────────"
-  echo "Wygenerowano:"
-  echo "  $ENV_OUT"
-  echo "  $ACCESS_OUT"
-  echo ""
-  echo "NASTĘPNY KROK: ustaw VPS_IP w $ENV_OUT, potem uruchom:"
-  echo "  docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d"
-  echo "────────────────────────────────────────────"
+# Podstaw VPS_IP w access-list.txt rzeczywistym adresem z .env.prod
+VPS_IP_VAL=$(grep -E '^VPS_IP=' "$ENV_OUT" | cut -d= -f2 | tr -d '"' | tr -d "'")
+if [ -n "$VPS_IP_VAL" ] && [ "$VPS_IP_VAL" != "CHANGE_ME" ]; then
+  sed -i "s|VPS_IP|${VPS_IP_VAL}|g" "$ACCESS_OUT"
 fi
+
+echo ""
+echo "────────────────────────────────────────────"
+echo "Wygenerowano:"
+echo "  $ENV_OUT"
+echo "  $ACCESS_OUT"
+echo ""
+echo "NASTĘPNE KROKI:"
+echo "  1. Sprawdź VPS_IP w $ENV_OUT (obecnie: ${VPS_IP_VAL:-CHANGE_ME})"
+echo "  2. bash generate-certs.sh           # certyfikat SSL"
+echo "  3. docker compose -f docker-compose.prod.yaml --env-file .env.prod up -d"
+echo "────────────────────────────────────────────"
