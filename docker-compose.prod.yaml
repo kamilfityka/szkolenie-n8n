@@ -64,28 +64,8 @@ services:
     image: nginx:alpine
     restart: always
     ports:
-      - "9001:9001"
-      - "9002:9002"
-      - "9003:9003"
-      - "9004:9004"
-      - "9005:9005"
-      - "9006:9006"
-      - "9007:9007"
-      - "9008:9008"
-      - "9009:9009"
-      - "9010:9010"
-      - "9011:9011"
-      - "9012:9012"
-      - "9013:9013"
-      - "9014:9014"
-      - "9015:9015"
-      - "9016:9016"
-      - "9017:9017"
-      - "9018:9018"
-      - "9019:9019"
-      - "9020:9020"
-      - "9021:9021"
-      - "9022:9022"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
@@ -123,7 +103,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_01
       N8N_ENCRYPTION_KEY: ${N8N_01_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9001/
+      WEBHOOK_URL: https://${VPS_IP:-}/01/
+      N8N_PATH: /01/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_01_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_01_ADMIN_PASSWORD:-}
     volumes:
@@ -141,7 +122,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_02
       N8N_ENCRYPTION_KEY: ${N8N_02_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9002/
+      WEBHOOK_URL: https://${VPS_IP:-}/02/
+      N8N_PATH: /02/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_02_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_02_ADMIN_PASSWORD:-}
     volumes:
@@ -159,7 +141,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_03
       N8N_ENCRYPTION_KEY: ${N8N_03_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9003/
+      WEBHOOK_URL: https://${VPS_IP:-}/03/
+      N8N_PATH: /03/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_03_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_03_ADMIN_PASSWORD:-}
     volumes:
@@ -177,7 +160,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_04
       N8N_ENCRYPTION_KEY: ${N8N_04_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9004/
+      WEBHOOK_URL: https://${VPS_IP:-}/04/
+      N8N_PATH: /04/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_04_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_04_ADMIN_PASSWORD:-}
     volumes:
@@ -195,7 +179,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_05
       N8N_ENCRYPTION_KEY: ${N8N_05_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9005/
+      WEBHOOK_URL: https://${VPS_IP:-}/05/
+      N8N_PATH: /05/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_05_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_05_ADMIN_PASSWORD:-}
     volumes:
@@ -213,7 +198,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_06
       N8N_ENCRYPTION_KEY: ${N8N_06_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9006/
+      WEBHOOK_URL: https://${VPS_IP:-}/06/
+      N8N_PATH: /06/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_06_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_06_ADMIN_PASSWORD:-}
     volumes:
@@ -231,7 +217,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_07
       N8N_ENCRYPTION_KEY: ${N8N_07_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9007/
+      WEBHOOK_URL: https://${VPS_IP:-}/07/
+      N8N_PATH: /07/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_07_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_07_ADMIN_PASSWORD:-}
     volumes:
@@ -249,7 +236,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_08
       N8N_ENCRYPTION_KEY: ${N8N_08_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9008/
+      WEBHOOK_URL: https://${VPS_IP:-}/08/
+      N8N_PATH: /08/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_08_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_08_ADMIN_PASSWORD:-}
     volumes:
@@ -267,7 +255,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_09
       N8N_ENCRYPTION_KEY: ${N8N_09_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9009/
+      WEBHOOK_URL: https://${VPS_IP:-}/09/
+      N8N_PATH: /09/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_09_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_09_ADMIN_PASSWORD:-}
     volumes:
@@ -285,7 +274,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_10
       N8N_ENCRYPTION_KEY: ${N8N_10_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9010/
+      WEBHOOK_URL: https://${VPS_IP:-}/10/
+      N8N_PATH: /10/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_10_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_10_ADMIN_PASSWORD:-}
     volumes:
@@ -303,7 +293,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_11
       N8N_ENCRYPTION_KEY: ${N8N_11_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9011/
+      WEBHOOK_URL: https://${VPS_IP:-}/11/
+      N8N_PATH: /11/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_11_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_11_ADMIN_PASSWORD:-}
     volumes:
@@ -321,7 +312,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_12
       N8N_ENCRYPTION_KEY: ${N8N_12_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9012/
+      WEBHOOK_URL: https://${VPS_IP:-}/12/
+      N8N_PATH: /12/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_12_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_12_ADMIN_PASSWORD:-}
     volumes:
@@ -339,7 +331,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_13
       N8N_ENCRYPTION_KEY: ${N8N_13_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9013/
+      WEBHOOK_URL: https://${VPS_IP:-}/13/
+      N8N_PATH: /13/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_13_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_13_ADMIN_PASSWORD:-}
     volumes:
@@ -357,7 +350,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_14
       N8N_ENCRYPTION_KEY: ${N8N_14_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9014/
+      WEBHOOK_URL: https://${VPS_IP:-}/14/
+      N8N_PATH: /14/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_14_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_14_ADMIN_PASSWORD:-}
     volumes:
@@ -375,7 +369,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_15
       N8N_ENCRYPTION_KEY: ${N8N_15_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9015/
+      WEBHOOK_URL: https://${VPS_IP:-}/15/
+      N8N_PATH: /15/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_15_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_15_ADMIN_PASSWORD:-}
     volumes:
@@ -393,7 +388,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_16
       N8N_ENCRYPTION_KEY: ${N8N_16_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9016/
+      WEBHOOK_URL: https://${VPS_IP:-}/16/
+      N8N_PATH: /16/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_16_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_16_ADMIN_PASSWORD:-}
     volumes:
@@ -411,7 +407,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_17
       N8N_ENCRYPTION_KEY: ${N8N_17_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9017/
+      WEBHOOK_URL: https://${VPS_IP:-}/17/
+      N8N_PATH: /17/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_17_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_17_ADMIN_PASSWORD:-}
     volumes:
@@ -429,7 +426,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_18
       N8N_ENCRYPTION_KEY: ${N8N_18_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9018/
+      WEBHOOK_URL: https://${VPS_IP:-}/18/
+      N8N_PATH: /18/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_18_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_18_ADMIN_PASSWORD:-}
     volumes:
@@ -447,7 +445,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_19
       N8N_ENCRYPTION_KEY: ${N8N_19_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9019/
+      WEBHOOK_URL: https://${VPS_IP:-}/19/
+      N8N_PATH: /19/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_19_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_19_ADMIN_PASSWORD:-}
     volumes:
@@ -465,7 +464,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_20
       N8N_ENCRYPTION_KEY: ${N8N_20_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9020/
+      WEBHOOK_URL: https://${VPS_IP:-}/20/
+      N8N_PATH: /20/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_20_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_20_ADMIN_PASSWORD:-}
     volumes:
@@ -483,7 +483,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_21
       N8N_ENCRYPTION_KEY: ${N8N_21_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9021/
+      WEBHOOK_URL: https://${VPS_IP:-}/21/
+      N8N_PATH: /21/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_21_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_21_ADMIN_PASSWORD:-}
     volumes:
@@ -501,7 +502,8 @@ services:
       DB_POSTGRESDB_DATABASE: n8n_22
       N8N_ENCRYPTION_KEY: ${N8N_22_ENCRYPTION_KEY:-}
       N8N_PORT: "5678"
-      WEBHOOK_URL: https://${VPS_IP:-}:9022/
+      WEBHOOK_URL: https://${VPS_IP:-}/22/
+      N8N_PATH: /22/
       N8N_DEFAULT_ADMIN_EMAIL: ${N8N_22_ADMIN_EMAIL:-}
       N8N_DEFAULT_ADMIN_PASSWORD: ${N8N_22_ADMIN_PASSWORD:-}
     volumes:
