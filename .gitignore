@@ -1,4 +1,5 @@
 .env.prod
+.env.single
 access-list.txt
 
 # --- flota dynamiczna (sekrety i stan runtime) ---
