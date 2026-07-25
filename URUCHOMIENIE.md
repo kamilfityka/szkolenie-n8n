@@ -1,5 +1,11 @@
 # Uruchamianie szkolenia n8n — krok po kroku
 
+> **Szukasz zmiennej liczby instancji z domenami i HTTPS?** Zobacz
+> [`DYNAMIC.md`](DYNAMIC.md) — wariant, w którym dodajesz/usuwasz instancje w
+> locie (`bash add-instance.sh 1`), każda pod własną subdomeną z automatycznym
+> SSL. Poniższa instrukcja opisuje wariant statyczny (stała liczba, dostęp po
+> `IP:port`, bez SSL).
+
 ## Co dostaniesz
 
 20 izolowanych instancji n8n, każda na osobnym porcie, z osobną bazą danych i kontem użytkownika. Każdy uczestnik dostaje swój URL, login i hasło.

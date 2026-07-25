@@ -1,0 +1,75 @@
+# =============================================================================
+# n8n FLEET — infrastruktura bazowa (PostgreSQL + Traefik)
+# =============================================================================
+# To jest STAŁA część floty. Instancje n8n są dodawane dynamicznie jako
+# osobne pliki w instances/<nazwa>.yaml (patrz add-instance.sh).
+#
+# Uruchomienie ręczne (zwykle wołane przez skrypty):
+#   docker compose -p n8n-fleet \
+#     --env-file .env.dynamic --env-file .env.instances \
+#     -f docker-compose.dynamic.yaml -f instances/1.yaml ... up -d
+# =============================================================================
+
+name: n8n-fleet
+
+volumes:
+  db_storage:
+  traefik_acme:
+
+networks:
+  fleet:
+    name: n8n-fleet
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — jedna instancja bazy, osobna baza danych per instancja n8n
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: postgres
+    volumes:
+      - db_storage:/var/lib/postgresql/data
+    networks:
+      - fleet
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # Traefik — dynamiczny reverse proxy + automatyczny SSL (Let's Encrypt)
+  # ---------------------------------------------------------------------------
+  # Wykrywa kontenery n8n po etykietach (traefik.*) i sam wystawia certyfikat
+  # dla każdej subdomeny przez wyzwanie HTTP-01. Nie wymaga tokenów DNS —
+  # wystarczy wildcard rekord A: *.${BASE_DOMAIN} -> IP serwera.
+  # ---------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.1
+    restart: always
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=n8n-fleet
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:-}
+      - --certificatesresolvers.le.acme.storage=/acme/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      # Odkomentuj do testów (limity Let's Encrypt są wysokie, ale ostrożnie):
+      # - --certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_acme:/acme
+    networks:
+      - fleet

@@ -1,2 +1,9 @@
 .env.prod
+.env.single
 access-list.txt
+
+# --- flota dynamiczna (sekrety i stan runtime) ---
+.env.dynamic
+.env.instances
+access-list-dynamic.csv
+instances/*.yaml
