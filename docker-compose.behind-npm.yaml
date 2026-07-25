@@ -1,0 +1,29 @@
+# =============================================================================
+# Override: Traefik ZA nginx-proxy-manager
+# =============================================================================
+# Użyj, gdy NPM już zajmuje porty 80/443 na serwerze i chcesz go zachować
+# dla innych usług. Wtedy:
+#   - NPM robi SSL raz, dla wildcard *.${BASE_DOMAIN} (wymaga DNS-challenge,
+#     np. token Cloudflare w NPM),
+#   - w NPM tworzysz JEDEN Proxy Host: *.szkolenie-n8n.easyautomate.pl
+#     -> forward do  http://<IP_serwera>:${TRAEFIK_HTTP_PORT}
+#     (włącz "Websockets Support"),
+#   - Traefik przestaje robić ACME (SSL załatwia NPM) i tylko dynamicznie
+#     routuje subdomeny do właściwych kontenerów.
+#
+# Ustaw w .env.dynamic:  TRAEFIK_HTTP_PORT=8080  (lub inny wolny port)
+#
+# Uruchamiaj z tym override:
+#   USE_BEHIND_NPM=1 bash add-instance.sh 1
+# (skrypty dokładają ten plik automatycznie, gdy USE_BEHIND_NPM=1)
+# =============================================================================
+
+services:
+  traefik:
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=n8n-fleet
+      - --entrypoints.web.address=:80
+    ports: !override
+      - "${TRAEFIK_HTTP_PORT:-8080}:80"
