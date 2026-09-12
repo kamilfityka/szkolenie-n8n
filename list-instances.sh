@@ -23,26 +23,16 @@ printf "%-14s %-42s %-16s %-10s\n" "--------------" "---------------------------
 for f in "${FILES[@]}"; do
   slug="$(basename "$f" .yaml)"
   cname="$(container_of "$slug")"
-  status="$(docker inspect -f '{{.State.Status}}' "$cname" 2>/dev/null \
-            || docker inspect -f '{{.State.Status}}' "n8n-fleet-n8n-${slug}-1" 2>/dev/null \
-            || echo "—")"
+  status="$(container_status "$cname")"
   printf "%-14s %-42s %-16s %-10s\n" "$slug" "https://${slug}.${BASE_DOMAIN}" "$cname" "$status"
 done
 
 echo ""
-if npm_mode; then
-  echo "Tryb: nginx-proxy-manager z przodu (Traefik wyłączony)"
-  npm_c="$(detect_npm_container || true)"
-  echo "  NPM:        ${npm_c:-nie wykryto (ustaw NPM_CONTAINER w .env.dynamic)}"
-  SERVICES=(postgres)
-else
-  echo "Tryb: Traefik jako brzeg sieci (sam wystawia certyfikaty)"
-  SERVICES=(postgres traefik)
-fi
-
 echo "Infrastruktura:"
-for svc in "${SERVICES[@]}"; do
-  cname="n8n-fleet-${svc}-1"
-  status="$(docker inspect -f '{{.State.Status}}' "$cname" 2>/dev/null || echo "—")"
-  printf "  %-12s %s\n" "$svc" "$status"
-done
+status="$(container_status "n8n-fleet-postgres-1")"
+printf "  %-12s %s\n" "postgres" "$status"
+
+npm_c="$(detect_npm_container || true)"
+printf "  %-12s %s\n" "npm" "${npm_c:-nie wykryto (ustaw NPM_CONTAINER w .env.dynamic)}"
+printf "  %-12s %s\n" "sieć npm" "${NPM_NETWORK}$(docker network inspect "$NPM_NETWORK" >/dev/null 2>&1 && echo "" || echo "  ← nie istnieje!")"
+[ -n "$npm_c" ] && warn_if_npm_elsewhere || true
