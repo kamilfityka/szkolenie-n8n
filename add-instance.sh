@@ -10,8 +10,8 @@
 #   bash add-instance.sh ala ala@firma.pl       # -> https://ala.<BASE_DOMAIN>
 #   for i in $(seq 1 20); do bash add-instance.sh $i; done   # hurtowo 20 sztuk
 #
-# Tryb za nginx-proxy-manager:
-#   USE_BEHIND_NPM=1 bash add-instance.sh 1
+# Tryb "frontem jest nginx-proxy-manager" (Traefik nie startuje):
+#   USE_BEHIND_NPM=1 w .env.dynamic  albo  USE_BEHIND_NPM=1 bash add-instance.sh user1
 # =============================================================================
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
@@ -55,13 +55,26 @@ echo ""
 echo "════════════════════════════════════════════════════════════════════"
 echo " GOTOWE — instancja '${SLUG}'"
 echo "════════════════════════════════════════════════════════════════════"
-echo " URL:      ${URL}"
-echo " Login:    ${EMAIL}"
-echo " Hasło:    ${PASS}"
-echo " Dostępy:  ${ACCESS_CSV}"
+echo " URL:       ${URL}"
+echo " Login:     ${EMAIL}"
+echo " Hasło:     ${PASS}"
+echo " Kontener:  $(container_of "$SLUG")"
+echo " Dostępy:   ${ACCESS_CSV}"
 echo "────────────────────────────────────────────────────────────────────"
+if npm_mode; then
+echo " Zostało wpiąć subdomenę w nginx-proxy-manager (Proxy Host):"
+echo "   Domain Names:          ${SLUG}.${BASE_DOMAIN}"
+echo "   Scheme:                http"
+echo "   Forward Hostname / IP: $(container_of "$SLUG")"
+echo "   Forward Port:          5678"
+echo "   Websockets Support:    ON   (bez tego n8n nie działa poprawnie)"
+echo "   SSL:                   Let's Encrypt + Force SSL"
+echo ""
+echo " Hurtowo dla wszystkich instancji:  bash npm-hosts.sh --create"
+else
 echo " Uwaga: pierwszy certyfikat SSL Let's Encrypt może pojawić się po"
 echo " kilkunastu sekundach od pierwszego wejścia na URL (wyzwanie HTTP-01)."
-echo " Warunek: rekord DNS  *.${BASE_DOMAIN}  wskazuje na IP tego serwera,"
+echo " Warunek: rekord DNS  ${SLUG}.${BASE_DOMAIN}  wskazuje na IP tego serwera,"
 echo " a porty 80/443 są otwarte."
+fi
 echo "════════════════════════════════════════════════════════════════════"

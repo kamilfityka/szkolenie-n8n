@@ -23,8 +23,10 @@ PURGE=0
 FILE="$INSTANCES_DIR/${SLUG}.yaml"
 [ -f "$FILE" ] || c_warn "Brak pliku ${FILE} — spróbuję i tak usunąć kontener/wolumen"
 
-c_blue "Zatrzymuję i usuwam kontener n8n-${SLUG}..."
-dc rm -sf "n8n-${SLUG}" 2>/dev/null || docker rm -f "n8n-fleet-n8n-${SLUG}-1" 2>/dev/null || true
+c_blue "Zatrzymuję i usuwam kontener $(container_of "$SLUG")..."
+dc rm -sf "n8n-${SLUG}" 2>/dev/null || true
+docker rm -f "$(container_of "$SLUG")" 2>/dev/null || true
+docker rm -f "n8n-fleet-n8n-${SLUG}-1" 2>/dev/null || true
 
 # Usuń definicję instancji, żeby nie wróciła przy kolejnym `up`
 rm -f "$FILE"
@@ -46,6 +48,7 @@ if [ "$PURGE" = "1" ]; then
 else
   echo ""
   c_ok "Kontener '${SLUG}' usunięty. Dane (baza n8n_${SLUG} + wolumen + sekrety) ZACHOWANE."
+  npm_mode && echo "   Pamiętaj: Proxy Host '${SLUG}.${BASE_DOMAIN}' zostaje w nginx-proxy-manager."
   echo "   Aby przywrócić: bash add-instance.sh ${SLUG}"
   echo "   Aby skasować dane na stałe: bash remove-instance.sh ${SLUG} --purge"
 fi

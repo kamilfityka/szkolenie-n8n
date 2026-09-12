@@ -1,29 +1,36 @@
 # =============================================================================
-# Override: Traefik ZA nginx-proxy-manager
+# Override: frontem jest nginx-proxy-manager (NPM), Traefik wyłączony
 # =============================================================================
-# Użyj, gdy NPM już zajmuje porty 80/443 na serwerze i chcesz go zachować
-# dla innych usług. Wtedy:
-#   - NPM robi SSL raz, dla wildcard *.${BASE_DOMAIN} (wymaga DNS-challenge,
-#     np. token Cloudflare w NPM),
-#   - w NPM tworzysz JEDEN Proxy Host: *.szkolenie-n8n.easyautomate.pl
-#     -> forward do  http://<IP_serwera>:${TRAEFIK_HTTP_PORT}
-#     (włącz "Websockets Support"),
-#   - Traefik przestaje robić ACME (SSL załatwia NPM) i tylko dynamicznie
-#     routuje subdomeny do właściwych kontenerów.
+# Użyj, gdy na serwerze stoi już nginx-proxy-manager na portach 80/443 i to ON
+# ma rozdzielać ruch. Wtedy:
 #
-# Ustaw w .env.dynamic:  TRAEFIK_HTTP_PORT=8080  (lub inny wolny port)
+#   Internet → NPM (80/443, SSL per subdomena) → n8n-user1:5678   (kontener 1)
+#                                              → n8n-user2:5678   (kontener 2)
+#                                              → ...
 #
-# Uruchamiaj z tym override:
-#   USE_BEHIND_NPM=1 bash add-instance.sh 1
-# (skrypty dokładają ten plik automatycznie, gdy USE_BEHIND_NPM=1)
+#   - każda subdomena ma SWÓJ kontener, a NPM trafia do niego po nazwie
+#     kontenera we wspólnej sieci docker `n8n-fleet`,
+#   - kontenery n8n NIE wystawiają żadnego portu na hosta — jedyne wejście
+#     z internetu prowadzi przez NPM,
+#   - Traefik w ogóle nie startuje (profil `disabled`), więc nie walczy z NPM
+#     o porty 80/443 ani nie dokłada drugiego proxy na trasie.
+#
+# Włączenie trybu (na stałe): USE_BEHIND_NPM=1 w .env.dynamic
+# Włączenie jednorazowe:      USE_BEHIND_NPM=1 bash add-instance.sh user1
+#
+# Konfiguracja hostów w NPM (ręcznie lub skryptem npm-hosts.sh):
+#   Domain Names:          userN.<BASE_DOMAIN>
+#   Forward Hostname / IP: n8n-userN        Forward Port: 5678
+#   Websockets Support:    ON  (n8n bez tego nie działa poprawnie)
+#   SSL:                   Let's Encrypt + Force SSL
+#
+# Warunek: kontener NPM musi być w sieci `n8n-fleet` — skrypty podłączają go
+# automatycznie (patrz ensure_npm_network w _lib.sh).
 # =============================================================================
 
 services:
   traefik:
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=n8n-fleet
-      - --entrypoints.web.address=:80
-    ports: !override
-      - "${TRAEFIK_HTTP_PORT:-8080}:80"
+    # Profil, którego nikt nie włącza => usługa nigdy nie wystartuje.
+    profiles:
+      - disabled
+    ports: !override []
