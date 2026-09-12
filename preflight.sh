@@ -43,7 +43,7 @@ docker compose version >/dev/null 2>&1 && c_ok "docker compose" || fail "plugin 
 # --- 2. konfiguracja ---------------------------------------------------------
 section "Konfiguracja (.env.dynamic)"
 c_ok "BASE_DOMAIN = ${BASE_DOMAIN}"
-if grep -q "CHANGE_ME" "$ENV_DYNAMIC"; then
+if grep -v '^[[:space:]]*#' "$ENV_DYNAMIC" | grep -q "CHANGE_ME"; then
   fail "w .env.dynamic zostały wartości CHANGE_ME — uzupełnij hasła i ACME_EMAIL"
 else
   c_ok "brak pozostawionych CHANGE_ME"

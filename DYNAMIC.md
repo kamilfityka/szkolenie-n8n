@@ -76,6 +76,43 @@ klikania, ale wymaga wolnych portów.
 
 ---
 
+## Najkrótsza droga: jedno polecenie
+
+```bash
+git clone https://github.com/kamilfityka/szkolenie-n8n.git
+cd szkolenie-n8n
+bash setup-fleet.sh --count 16
+```
+
+`setup-fleet.sh` przechodzi całą drogę: dopyta o domenę i dane do nginx-proxy-managera,
+sprawdzi serwer (DNS, porty, RAM), postawi instancje, założy Proxy Hosty z certyfikatami
+i na koniec wypisze tabelę:
+
+```
+ UCZESTNIK  ADRES                              LOGIN                             HASŁO           KONTENER
+ user1      https://user1.n8n.easyautomate.pl  admin+user1@n8n.easyautomate.pl   376nXiklW0BJ3q  n8n-user1
+ user2      https://user2.n8n.easyautomate.pl  admin+user2@n8n.easyautomate.pl   cqYlM8NYfwSFSo  n8n-user2
+ ...
+```
+
+To samo trafia do `dostepy.md` (gotowe bloki do rozesłania) i `access-list-dynamic.csv`.
+
+Warianty:
+
+```bash
+bash setup-fleet.sh --count 20                       # user1..user20
+bash setup-fleet.sh --prefix kursant --count 8       # kursant1..kursant8
+bash setup-fleet.sh --users ala=ala@firma.pl,bartek  # nazwy własne, własne loginy
+bash setup-fleet.sh --count 16 --skip-npm            # bez dotykania NPM
+```
+
+Skrypt jest **idempotentny** — można go puścić ponownie. Istniejący uczestnicy zachowują
+hasła, klucze szyfrowania i dane; dokładane są tylko brakujące instancje.
+
+Poniżej to samo krok po kroku, gdy chcesz mieć kontrolę nad każdym etapem.
+
+---
+
 ## Uruchomienie — krok po kroku
 
 ### 1. Pobierz projekt na serwer
@@ -160,7 +197,9 @@ Kolumny: `name, url, email, password`, np.:
 
 | Cel | Komenda |
 |---|---|
+| Postawić/uzupełnić całą flotę | `bash setup-fleet.sh --count 16` |
 | Lista instancji + status | `bash list-instances.sh` |
+| Dostępy do rozdania | `cat dostepy.md` |
 | Dodaj instancję | `bash add-instance.sh user21` |
 | Usuń kontener, **zostaw dane** | `bash remove-instance.sh user21` |
 | Usuń instancję **z danymi** | `bash remove-instance.sh user21 --purge` |

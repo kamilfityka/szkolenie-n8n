@@ -44,12 +44,14 @@ PASS="$(get_secret "N8N_ADMIN_PASS_${EK}")"
 URL="https://${SLUG}.${BASE_DOMAIN}"
 
 if [ ! -f "$ACCESS_CSV" ]; then
-  echo "name,url,email,password" > "$ACCESS_CSV"
+  echo "name,url,email,password,container" > "$ACCESS_CSV"
+elif ! head -1 "$ACCESS_CSV" | grep -q ',container$'; then
+  sed -i '1s|.*|name,url,email,password,container|' "$ACCESS_CSV"
 fi
 # Usuń ewentualny stary wpis i dopisz aktualny
 grep -v -E "^\"?${SLUG}\"?," "$ACCESS_CSV" > "${ACCESS_CSV}.tmp" 2>/dev/null || true
 mv "${ACCESS_CSV}.tmp" "$ACCESS_CSV" 2>/dev/null || true
-echo "\"${SLUG}\",\"${URL}\",\"${EMAIL}\",\"${PASS}\"" >> "$ACCESS_CSV"
+echo "\"${SLUG}\",\"${URL}\",\"${EMAIL}\",\"${PASS}\",\"$(container_of "$SLUG")\"" >> "$ACCESS_CSV"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
