@@ -48,12 +48,7 @@ if grep -v '^[[:space:]]*#' "$ENV_DYNAMIC" | grep -q "CHANGE_ME"; then
 else
   c_ok "brak pozostawionych CHANGE_ME"
 fi
-if npm_mode; then
-  c_ok "tryb: nginx-proxy-manager z przodu (Traefik wyłączony)"
-else
-  warn_line "tryb: Traefik jako brzeg (zajmie porty 80/443). Jeśli na serwerze stoi
-   nginx-proxy-manager, ustaw USE_BEHIND_NPM=1 w .env.dynamic"
-fi
+c_ok "sieć nginx-proxy-managera: ${NPM_NETWORK}"
 
 # --- 3. IP serwera -----------------------------------------------------------
 section "Adres IP serwera"
@@ -99,37 +94,36 @@ section "Porty 80/443"
 if command -v ss >/dev/null 2>&1; then
   LISTEN="$(ss -tlnp 2>/dev/null | grep -E ':(80|443)\s' || true)"
   if [ -z "$LISTEN" ]; then
-    if npm_mode; then
-      warn_line "nikt nie słucha na 80/443 — czy nginx-proxy-manager na pewno działa?"
-    else
-      c_ok "porty wolne — Traefik je zajmie"
-    fi
+    warn_line "nikt nie słucha na 80/443 — czy nginx-proxy-manager na pewno działa?"
   else
     echo "$LISTEN" | sed 's/^/     /'
-    if npm_mode; then
-      c_ok "porty zajęte (spodziewane — trzyma je nginx-proxy-manager)"
-    else
-      fail "porty 80/443 są zajęte, a Traefik ma być brzegiem — włącz USE_BEHIND_NPM=1"
-    fi
+    c_ok "porty zajęte — spodziewane, trzyma je nginx-proxy-manager"
   fi
 else
   warn_line "brak 'ss' — sprawdź porty ręcznie"
 fi
 
 # --- 6. nginx-proxy-manager --------------------------------------------------
-if npm_mode; then
-  section "nginx-proxy-manager"
-  NPM_C="$(detect_npm_container || true)"
-  if [ -z "$NPM_C" ]; then
-    fail "nie wykryto kontenera NPM — ustaw NPM_CONTAINER=<nazwa> w .env.dynamic"
+section "nginx-proxy-manager"
+if docker network inspect "$NPM_NETWORK" >/dev/null 2>&1; then
+  c_ok "sieć '${NPM_NETWORK}' istnieje"
+else
+  fail "sieć docker '${NPM_NETWORK}' nie istnieje — sprawdź 'docker network ls'
+     i wpisz właściwą nazwę do .env.dynamic (NPM_NETWORK=...)"
+fi
+
+NPM_C="$(detect_npm_container || true)"
+if [ -z "$NPM_C" ]; then
+  warn_line "nie wykryto kontenera NPM — jeśli działa pod nietypowym obrazem,
+   ustaw NPM_CONTAINER=<nazwa> w .env.dynamic"
+else
+  c_ok "kontener: ${NPM_C}"
+  NETS="$(npm_container_networks "$NPM_C")"
+  if echo "$NETS" | grep -qx "$NPM_NETWORK"; then
+    c_ok "stoi w sieci '${NPM_NETWORK}' — dosięgnie kontenery n8n po nazwie"
   else
-    c_ok "kontener: ${NPM_C}"
-    if docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$NPM_C" 2>/dev/null \
-       | tr ' ' '\n' | grep -qx "n8n-fleet"; then
-      c_ok "jest w sieci n8n-fleet (dosięgnie kontenery n8n po nazwie)"
-    else
-      warn_line "nie jest jeszcze w sieci n8n-fleet — add-instance.sh podłączy go automatycznie"
-    fi
+    fail "NPM nie jest w sieci '${NPM_NETWORK}' (jest w: $(echo "$NETS" | tr '\n' ' ')) — dostaniesz 502.
+     Popraw NPM_NETWORK w .env.dynamic albo: docker network connect ${NPM_NETWORK} ${NPM_C}"
   fi
 fi
 

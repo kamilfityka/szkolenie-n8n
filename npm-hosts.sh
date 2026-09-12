@@ -40,9 +40,7 @@ FILES=("$INSTANCES_DIR"/*.yaml)
 SLUGS=()
 for f in "${FILES[@]}"; do SLUGS+=("$(basename "$f" .yaml)"); done
 
-npm_mode || c_warn "USE_BEHIND_NPM nie jest ustawione na 1 — instancje routuje Traefik, nie NPM.
-   Jeśli frontem ma być nginx-proxy-manager, ustaw USE_BEHIND_NPM=1 w .env.dynamic
-   i przerenderuj instancje:  for s in ${SLUGS[*]}; do bash add-instance.sh \$s; done"
+warn_if_npm_elsewhere
 
 # ---------------------------------------------------------------------------
 # Podgląd

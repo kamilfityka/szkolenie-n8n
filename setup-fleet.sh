@@ -78,24 +78,28 @@ ask_secret() {  # ask_secret <zmienna> <pytanie>
 create_config() {
   c_blue "Pierwsze uruchomienie — tworzę .env.dynamic"
 
-  local base_domain acme_email npm_answer use_npm npm_email npm_password npm_url
+  local base_domain acme_email npm_network npm_email npm_password npm_url detected
   ask base_domain "Domena bazowa (subdomeny powstaną jako user1.<domena>)" "n8n.easyautomate.pl"
   ask acme_email  "E-mail do certyfikatów Let's Encrypt" ""
 
-  ask npm_answer "Czy na serwerze stoi nginx-proxy-manager i to on ma rozdzielać ruch? (t/n)" "t"
-  case "$npm_answer" in
-    [tTyY]*) use_npm=1 ;;
-    *)       use_npm=0 ;;
-  esac
-
-  npm_url="http://127.0.0.1:81"; npm_email=""; npm_password=""
-  if [ "$use_npm" = "1" ]; then
-    echo "   (login do panelu NPM — potrzebny tylko do automatycznego zakładania Proxy Hostów;"
-    echo "    zostaw puste, jeśli wolisz wpisać hosty ręcznie)"
-    ask        npm_url      "Adres panelu NPM" "$npm_url"
-    ask        npm_email    "Login (e-mail) do NPM" ""
-    ask_secret npm_password "Hasło do NPM"
+  # Sieć docker nginx-proxy-managera — podpowiedz tę, w której faktycznie stoi
+  detected="$NPM_NETWORK_DEFAULT"
+  local npm_c
+  npm_c="$(detect_npm_container || true)"
+  if [ -n "$npm_c" ]; then
+    local first
+    first="$(npm_container_networks "$npm_c" | head -1)"
+    [ -n "$first" ] && detected="$first"
+    echo "   (wykryty nginx-proxy-manager: ${npm_c}, sieci: $(npm_container_networks "$npm_c" | tr '\n' ' '))"
   fi
+  ask npm_network "Sieć docker nginx-proxy-managera" "$detected"
+
+  npm_url="http://127.0.0.1:81"
+  echo "   (login do panelu NPM — potrzebny tylko do automatycznego zakładania Proxy Hostów;"
+  echo "    zostaw puste, jeśli wolisz wpisać hosty ręcznie)"
+  ask        npm_url      "Adres panelu NPM" "$npm_url"
+  ask        npm_email    "Login (e-mail) do NPM" ""
+  ask_secret npm_password "Hasło do NPM"
 
   # Znaki specjalne sed-a w hasłach/adresach nie mogą rozwalić podstawienia
   esc() { printf '%s' "$1" | sed -e 's/[\\|&]/\\\\&/g'; }
@@ -103,7 +107,7 @@ create_config() {
   umask 077
   sed -e "s|^BASE_DOMAIN=.*|BASE_DOMAIN=$(esc "$base_domain")|" \
       -e "s|^ACME_EMAIL=.*|ACME_EMAIL=$(esc "$acme_email")|" \
-      -e "s|^USE_BEHIND_NPM=.*|USE_BEHIND_NPM=${use_npm}|" \
+      -e "s|^NPM_NETWORK=.*|NPM_NETWORK=$(esc "$npm_network")|" \
       -e "s|^NPM_URL=.*|NPM_URL=$(esc "$npm_url")|" \
       -e "s|^NPM_EMAIL=.*|NPM_EMAIL=$(esc "$npm_email")|" \
       -e "s|^NPM_PASSWORD=.*|NPM_PASSWORD=$(esc "$npm_password")|" \
@@ -150,12 +154,8 @@ echo " PLAN"
 echo "════════════════════════════════════════════════════════════════════"
 echo " Uczestników:  ${#SLUGS[@]}"
 echo " Adresy:       https://${SLUGS[0]}.${BASE_DOMAIN} ... https://${SLUGS[-1]}.${BASE_DOMAIN}"
-if npm_mode; then
-  echo " Ruch:         nginx-proxy-manager -> osobny kontener na subdomenę"
-  echo " Proxy Hosty:  $([ "$SKIP_NPM" = "1" ] && echo 'pomijam (--skip-npm)' || echo 'zakładam automatycznie')"
-else
-  echo " Ruch:         Traefik jako brzeg (zajmie porty 80/443), SSL automatyczny"
-fi
+echo " Ruch:         nginx-proxy-manager (sieć ${NPM_NETWORK}) -> osobny kontener na subdomenę"
+echo " Proxy Hosty:  $([ "$SKIP_NPM" = "1" ] && echo 'pomijam (--skip-npm)' || echo 'zakładam automatycznie')"
 echo " Szacowany RAM: ~$(( ${#SLUGS[@]} * 450 + 400 )) MB"
 echo "════════════════════════════════════════════════════════════════════"
 
@@ -201,7 +201,7 @@ done
 # ---------------------------------------------------------------------------
 # 5. nginx-proxy-manager
 # ---------------------------------------------------------------------------
-if npm_mode && [ "$SKIP_NPM" != "1" ]; then
+if [ "$SKIP_NPM" != "1" ]; then
   if [ -n "${NPM_EMAIL:-}" ] && [ -n "${NPM_PASSWORD:-}" ]; then
     bash "$ROOT/npm-hosts.sh" --create || c_warn "Nie wszystkie Proxy Hosty się założyły — szczegóły wyżej.
    Brakujące dodasz w panelu NPM albo ponownie: bash npm-hosts.sh --create"

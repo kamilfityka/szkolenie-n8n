@@ -12,13 +12,11 @@ po `IP:port`). Oba warianty mogą leżeć obok siebie w repo.
 
 ---
 
-## Dwa tryby pracy
+## Jak to działa
 
-Wybierasz jeden, wpisem `USE_BEHIND_NPM` w `.env.dynamic`.
-
-### Tryb 1 (domyślny): frontem jest nginx-proxy-manager — `USE_BEHIND_NPM=1`
-
-Dla serwera, na którym **NPM już stoi na portach 80/443** i obsługuje inne usługi.
+Frontem jest **nginx-proxy-manager** — trzyma porty 80/443, robi SSL i kieruje ruch
+po nazwie domeny wprost do kontenera uczestnika. Instancje n8n dołączają do sieci
+docker, w której stoi NPM (sieć zewnętrzna, tworzy ją compose NPM-a).
 
 ```
                        user1.n8n.easyautomate.pl ─┐
@@ -27,26 +25,32 @@ Dla serwera, na którym **NPM już stoi na portach 80/443** i obsługuje inne us
                                     │
                         ┌───────────▼────────────┐
                         │  nginx-proxy-manager   │  80/443, SSL per subdomena
-                        │  (Proxy Host per user) │  Let's Encrypt, Websockets ON
+                        │  (Proxy Host per user) │  Websockets ON
                         └───────────┬────────────┘
-                    sieć docker `n8n-fleet` (bez wystawiania portów na hosta)
+                     sieć `nginx-proxy-manager_default` (zewnętrzna)
         ┌───────────────┬───────────┴───────┬────────────────┐
    n8n-user1        n8n-user2          n8n-user3   ...    n8n-userN
-        └───────────────┴───────────────────┴──── wspólny PostgreSQL ────┘
+        │                │                  │                │
+        └────────────────┴── sieć `n8n-fleet-internal` ───────┴─── PostgreSQL
 ```
 
-- NPM trafia do kontenera **po nazwie** (`n8n-user1:5678`) — kontenery n8n nie
-  wystawiają żadnego portu na hosta, jedyne wejście z internetu jest przez NPM.
-- Traefik w tym trybie **w ogóle nie startuje** — nie walczy o porty i nie
-  dokłada drugiego proxy na trasie.
-- Proxy Hosty w NPM zakłada hurtowo `bash npm-hosts.sh --create`.
+- NPM trafia do kontenera **po nazwie**: `n8n-user1`, port `5678`.
+- Port 5678 jest tylko **wystawiony (`expose`)** wewnątrz sieci docker —
+  **żaden kontener nie publikuje portu na hosta**. Jedyne wejście z internetu
+  prowadzi przez NPM.
+- PostgreSQL stoi wyłącznie w prywatnej sieci `n8n-fleet-internal`, więc nie jest
+  widoczny dla pozostałych kontenerów wpiętych w sieć NPM-a.
+- Żadnego Traefika — NPM jest jedynym proxy na trasie.
 
-### Tryb 2: Traefik jako brzeg sieci — `USE_BEHIND_NPM=0`
+Nazwę sieci NPM-a ustawia się w `.env.dynamic`:
 
-Dla **czystego serwera**, na którym nic nie słucha na 80/443. Traefik przejmuje
-te porty, wykrywa nowe kontenery po etykietach Docker i **sam wystawia
-certyfikat** (wyzwanie HTTP-01) — bez tokenów DNS, bez restartu reszty. Najmniej
-klikania, ale wymaga wolnych portów.
+```
+NPM_NETWORK=nginx-proxy-manager_default
+```
+
+Sprawdzisz ją poleceniem `docker network ls` (albo `docker inspect <kontener-npm>`).
+Skrypty przerywają pracę z czytelnym komunikatem, jeśli ta sieć nie istnieje lub
+NPM stoi w innej.
 
 ---
 
@@ -72,7 +76,7 @@ klikania, ale wymaga wolnych portów.
    > **Uwaga na catch-all.** Jeśli domena ma ogólny wildcard (`*.example.pl`),
    > brakujący rekord **nie zwróci błędu** — cicho wskaże stary serwer, a
    > certyfikat się nie wystawi. Dlatego zawsze weryfikuj `preflight.sh`.
-3. **Porty**: w trybie 1 — 80/443 należą do NPM; w trybie 2 — muszą być wolne.
+3. **nginx-proxy-manager** działający na tym serwerze (trzyma 80/443) i nazwa jego sieci docker.
 
 ---
 
@@ -132,7 +136,7 @@ nano .env.dynamic
 Uzupełnij:
 - `BASE_DOMAIN=n8n.easyautomate.pl`
 - `ACME_EMAIL=twoj@email.pl`
-- `USE_BEHIND_NPM=1` (jeśli na serwerze stoi nginx-proxy-manager) lub `0`
+- `NPM_NETWORK` — sieć docker nginx-proxy-managera (`docker network ls`)
 - `NPM_EMAIL` / `NPM_PASSWORD` — login do panelu NPM (tylko dla `npm-hosts.sh --create`)
 - `POSTGRES_PASSWORD` i `N8N_DB_PASSWORD` — wygeneruj: `openssl rand -hex 16`
 
@@ -158,11 +162,10 @@ for i in $(seq 1 20); do bash add-instance.sh "user$i"; done   # hurtowo
 Każde wywołanie:
 - tworzy bazę `n8n_<nazwa>` i klucz szyfrowania,
 - generuje login (`admin+<nazwa>@...`) i losowe hasło,
-- podnosi kontener `n8n-<nazwa>` w sieci `n8n-fleet`,
-- w trybie 2 od razu rejestruje subdomenę w Traefiku (SSL leci automatycznie),
+- podnosi kontener `n8n-<nazwa>` w sieci nginx-proxy-managera (bez portów na hoście),
 - dopisuje dostęp do `access-list-dynamic.csv`.
 
-### 5. (Tryb 1) Załóż Proxy Hosty w NPM
+### 5. Załóż Proxy Hosty w NPM
 
 ```bash
 bash npm-hosts.sh                  # podgląd: co i gdzie wpisać, nic nie zmienia
@@ -206,7 +209,6 @@ Kolumny: `name, url, email, password`, np.:
 | Logi instancji | `docker logs n8n-user1` |
 | Restart instancji | `docker restart n8n-user1` |
 | Podgląd hostów dla NPM | `bash npm-hosts.sh` |
-| Logi Traefika (tylko tryb 2) | `docker logs n8n-fleet-traefik-1` |
 | Zużycie RAM | `docker stats` |
 
 > `remove-instance.sh <nazwa>` bez `--purge` tylko zdejmuje kontener — baza,
@@ -235,14 +237,16 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 - `bash preflight.sh user{1..20}` — najczęstsza przyczyna to subdomena
   wskazująca na inny serwer (patrz uwaga o catch-all wildcardzie wyżej).
 - Port 80 musi być publicznie dostępny — Let's Encrypt puka po HTTP.
-- Tryb 1: logi certyfikatu są w panelu NPM (SSL Certificates).
-  Tryb 2: `docker logs n8n-fleet-traefik-1`.
+- Logi wystawiania certyfikatu są w panelu NPM (zakładka SSL Certificates).
 
 **502 Bad Gateway w NPM**
-- Kontener NPM musi być w sieci `n8n-fleet`:
-  `docker network connect n8n-fleet <nazwa-kontenera-npm>`
-  (skrypty robią to same; `bash list-instances.sh` pokaże wykryty kontener).
+- NPM i kontener n8n muszą być w **tej samej sieci** docker. Sprawdź:
+  `bash list-instances.sh` (pokaże wykrytą sieć i kontener NPM) oraz
+  `docker network inspect $NPM_NETWORK | grep n8n-`.
+- Jeśli NPM stoi w innej sieci, popraw `NPM_NETWORK` w `.env.dynamic`
+  i przerenderuj instancje (`bash setup-fleet.sh --count 16`).
 - Sprawdź, czy instancja żyje: `docker ps | grep n8n-user1`.
+- Forward Hostname to **nazwa kontenera** (`n8n-user1`), nie `localhost` ani IP.
 
 **n8n „ładuje się w nieskończoność", edytor nie odpowiada**
 - Prawie zawsze brak **Websockets Support** w Proxy Hoście. Włącz i zapisz.
@@ -261,7 +265,7 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 | | `docker-compose.prod.yaml` (statyczny) | flota dynamiczna (ten plik) |
 |---|---|---|
 | Liczba instancji | sztywno 22, edycja YAML | dowolna, jednym poleceniem |
-| Adres | `http://IP:port` | `https://user1.domena` |
-| SSL | brak | tak (NPM albo Traefik) |
+| Adres | `http://IP:port` | `https://user1.domena` (port tylko w sieci docker) |
+| SSL | brak | tak (nginx-proxy-manager) |
 | Dodanie instancji | edycja compose + restart | `bash add-instance.sh <n>` |
 | Izolacja danych | osobna baza | osobna baza + osobny klucz szyfrowania |
