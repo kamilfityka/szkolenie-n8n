@@ -32,8 +32,14 @@ require_env() {
   docker compose version >/dev/null 2>&1 || c_err "plugin 'docker compose' nie działa"
   [ -f "$ENV_DYNAMIC" ] || c_err "Brak $ENV_DYNAMIC — skopiuj: cp .env.dynamic.example .env.dynamic i uzupełnij"
 
+  # Wartość podana w wywołaniu (USE_BEHIND_NPM=1 bash ...) ma pierwszeństwo nad .env.dynamic
+  local cli_npm="${USE_BEHIND_NPM:-}"
+
   # Wczytaj zmienne bazowe do środowiska (dla operacji na Postgresie po stronie hosta)
   set -a; . "$ENV_DYNAMIC"; set +a
+
+  [ -n "$cli_npm" ] && USE_BEHIND_NPM="$cli_npm"
+  export USE_BEHIND_NPM="${USE_BEHIND_NPM:-0}"
 
   : "${BASE_DOMAIN:?Ustaw BASE_DOMAIN w .env.dynamic}"
   : "${POSTGRES_USER:?Ustaw POSTGRES_USER w .env.dynamic}"
@@ -43,6 +49,21 @@ require_env() {
   mkdir -p "$INSTANCES_DIR"
   touch "$ENV_INSTANCES"
 }
+
+# ---------------------------------------------------------------------------
+# Tryb pracy
+# ---------------------------------------------------------------------------
+# npm_mode == 1  -> frontem jest nginx-proxy-manager, Traefik NIE startuje.
+#                   NPM kieruje ruch wprost do kontenera danej subdomeny
+#                   (po nazwie kontenera we wspólnej sieci n8n-fleet).
+# npm_mode == 0  -> Traefik jest brzegiem: trzyma 80/443 i sam robi SSL.
+npm_mode() { [ "${USE_BEHIND_NPM:-0}" = "1" ]; }
+
+# Nazwa kontenera instancji (stała w obu trybach — ustawiana przez container_name)
+container_of() { echo "n8n-$1"; }
+
+# Cel, który wpisuje się w nginx-proxy-manager jako Forward Hostname/IP
+npm_target() { echo "$(container_of "$1"):5678"; }
 
 # ---------------------------------------------------------------------------
 # Slug: nazwa instancji sprowadzona do bezpiecznej etykiety DNS [a-z0-9-]
@@ -87,19 +108,59 @@ dc() {
 # Postgres — uruchomienie infrastruktury i tworzenie bazy per instancja
 # ---------------------------------------------------------------------------
 ensure_infra() {
-  c_blue "Uruchamiam infrastrukturę (postgres + traefik)..."
-  dc up -d postgres traefik
+  if npm_mode; then
+    c_blue "Uruchamiam infrastrukturę (postgres; ruchem rozdziela nginx-proxy-manager)..."
+    dc up -d postgres
+  else
+    c_blue "Uruchamiam infrastrukturę (postgres + traefik)..."
+    dc up -d postgres traefik
+  fi
 
   c_blue "Czekam aż PostgreSQL będzie gotowy..."
   local i
   for i in $(seq 1 30); do
     if dc exec -T postgres pg_isready -U "$POSTGRES_USER" -d postgres >/dev/null 2>&1; then
       c_ok "PostgreSQL gotowy"
+      npm_mode && ensure_npm_network
       return 0
     fi
     sleep 2
   done
   c_err "PostgreSQL nie wystartował w wyznaczonym czasie"
+}
+
+# ---------------------------------------------------------------------------
+# nginx-proxy-manager musi widzieć kontenery n8n — czyli być w sieci n8n-fleet
+# ---------------------------------------------------------------------------
+detect_npm_container() {
+  if [ -n "${NPM_CONTAINER:-}" ]; then
+    echo "$NPM_CONTAINER"
+    return 0
+  fi
+  docker ps --format '{{.Names}}\t{{.Image}}' 2>/dev/null \
+    | awk -F'\t' 'tolower($2) ~ /nginx-?proxy-?manager/ { print $1; exit }'
+}
+
+ensure_npm_network() {
+  local c
+  c="$(detect_npm_container || true)"
+
+  if [ -z "$c" ]; then
+    c_warn "Nie wykryłem kontenera nginx-proxy-manager."
+    echo "   Ustaw NPM_CONTAINER=<nazwa> w .env.dynamic albo podłącz go ręcznie:" >&2
+    echo "   docker network connect n8n-fleet <nazwa-kontenera-npm>" >&2
+    return 0
+  fi
+
+  if docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$c" 2>/dev/null \
+     | tr ' ' '\n' | grep -qx "n8n-fleet"; then
+    c_ok "nginx-proxy-manager ('${c}') jest już w sieci n8n-fleet"
+  elif docker network connect n8n-fleet "$c" 2>/dev/null; then
+    c_ok "Podłączono '${c}' do sieci n8n-fleet"
+  else
+    c_warn "Nie udało się podłączyć '${c}' do sieci n8n-fleet — zrób to ręcznie:"
+    echo "   docker network connect n8n-fleet ${c}" >&2
+  fi
 }
 
 psql_admin() { dc exec -T postgres psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$@"; }
@@ -178,18 +239,18 @@ render_instance() {
   ek="$(envkey "$slug")"
   out="$INSTANCES_DIR/${slug}.yaml"
 
-  # Etykiety Traefik zależne od trybu SSL
-  local router_labels
-  if [ "${USE_BEHIND_NPM:-0}" = "1" ]; then
-    # SSL terminuje nginx-proxy-manager z przodu; Traefik tylko routuje po http
-    router_labels="\
-      - traefik.enable=true
-      - \"traefik.http.routers.n8n-${slug}.rule=Host(\`${slug}.\${BASE_DOMAIN}\`)\"
-      - traefik.http.routers.n8n-${slug}.entrypoints=web
-      - traefik.http.services.n8n-${slug}.loadbalancer.server.port=5678"
+  # Sekcja routingu zależna od trybu
+  local routing_block
+  if npm_mode; then
+    # Frontem jest nginx-proxy-manager — kieruje wprost do tego kontenera
+    # (Forward Hostname: n8n-${slug}, Port: 5678). Traefik nie bierze udziału.
+    routing_block="\
+    labels:
+      - traefik.enable=false"
   else
     # Traefik jest brzegiem i sam wystawia certyfikat Let's Encrypt
-    router_labels="\
+    routing_block="\
+    labels:
       - traefik.enable=true
       - \"traefik.http.routers.n8n-${slug}.rule=Host(\`${slug}.\${BASE_DOMAIN}\`)\"
       - traefik.http.routers.n8n-${slug}.entrypoints=websecure
@@ -200,10 +261,12 @@ render_instance() {
   cat > "$out" <<EOF
 # Wygenerowano przez add-instance.sh — instancja: ${slug}
 # URL: https://${slug}.${BASE_DOMAIN}
+# Kontener: n8n-${slug}   (cel dla nginx-proxy-manager: n8n-${slug}:5678)
 # Aby usunąć: bash remove-instance.sh ${slug}
 services:
   n8n-${slug}:
     image: docker.n8n.io/n8nio/n8n
+    container_name: n8n-${slug}
     restart: always
     depends_on:
       postgres:
@@ -230,8 +293,7 @@ services:
       - n8n_data_${slug}:/home/node/.n8n
     networks:
       - fleet
-    labels:
-${router_labels}
+${routing_block}
 
 volumes:
   n8n_data_${slug}:

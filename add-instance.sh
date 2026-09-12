@@ -10,8 +10,8 @@
 #   bash add-instance.sh ala ala@firma.pl       # -> https://ala.<BASE_DOMAIN>
 #   for i in $(seq 1 20); do bash add-instance.sh $i; done   # hurtowo 20 sztuk
 #
-# Tryb za nginx-proxy-manager:
-#   USE_BEHIND_NPM=1 bash add-instance.sh 1
+# Tryb "frontem jest nginx-proxy-manager" (Traefik nie startuje):
+#   USE_BEHIND_NPM=1 w .env.dynamic  albo  USE_BEHIND_NPM=1 bash add-instance.sh user1
 # =============================================================================
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
@@ -44,24 +44,39 @@ PASS="$(get_secret "N8N_ADMIN_PASS_${EK}")"
 URL="https://${SLUG}.${BASE_DOMAIN}"
 
 if [ ! -f "$ACCESS_CSV" ]; then
-  echo "name,url,email,password" > "$ACCESS_CSV"
+  echo "name,url,email,password,container" > "$ACCESS_CSV"
+elif ! head -1 "$ACCESS_CSV" | grep -q ',container$'; then
+  sed -i '1s|.*|name,url,email,password,container|' "$ACCESS_CSV"
 fi
 # Usuń ewentualny stary wpis i dopisz aktualny
 grep -v -E "^\"?${SLUG}\"?," "$ACCESS_CSV" > "${ACCESS_CSV}.tmp" 2>/dev/null || true
 mv "${ACCESS_CSV}.tmp" "$ACCESS_CSV" 2>/dev/null || true
-echo "\"${SLUG}\",\"${URL}\",\"${EMAIL}\",\"${PASS}\"" >> "$ACCESS_CSV"
+echo "\"${SLUG}\",\"${URL}\",\"${EMAIL}\",\"${PASS}\",\"$(container_of "$SLUG")\"" >> "$ACCESS_CSV"
 
 echo ""
 echo "════════════════════════════════════════════════════════════════════"
 echo " GOTOWE — instancja '${SLUG}'"
 echo "════════════════════════════════════════════════════════════════════"
-echo " URL:      ${URL}"
-echo " Login:    ${EMAIL}"
-echo " Hasło:    ${PASS}"
-echo " Dostępy:  ${ACCESS_CSV}"
+echo " URL:       ${URL}"
+echo " Login:     ${EMAIL}"
+echo " Hasło:     ${PASS}"
+echo " Kontener:  $(container_of "$SLUG")"
+echo " Dostępy:   ${ACCESS_CSV}"
 echo "────────────────────────────────────────────────────────────────────"
+if npm_mode; then
+echo " Zostało wpiąć subdomenę w nginx-proxy-manager (Proxy Host):"
+echo "   Domain Names:          ${SLUG}.${BASE_DOMAIN}"
+echo "   Scheme:                http"
+echo "   Forward Hostname / IP: $(container_of "$SLUG")"
+echo "   Forward Port:          5678"
+echo "   Websockets Support:    ON   (bez tego n8n nie działa poprawnie)"
+echo "   SSL:                   Let's Encrypt + Force SSL"
+echo ""
+echo " Hurtowo dla wszystkich instancji:  bash npm-hosts.sh --create"
+else
 echo " Uwaga: pierwszy certyfikat SSL Let's Encrypt może pojawić się po"
 echo " kilkunastu sekundach od pierwszego wejścia na URL (wyzwanie HTTP-01)."
-echo " Warunek: rekord DNS  *.${BASE_DOMAIN}  wskazuje na IP tego serwera,"
+echo " Warunek: rekord DNS  ${SLUG}.${BASE_DOMAIN}  wskazuje na IP tego serwera,"
 echo " a porty 80/443 są otwarte."
+fi
 echo "════════════════════════════════════════════════════════════════════"

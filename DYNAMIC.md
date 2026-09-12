@@ -1,57 +1,115 @@
-# n8n — dynamiczna flota instancji z domenami i SSL
+# n8n — dynamiczna flota instancji z subdomenami i SSL
 
 Ten wariant pozwala **dodawać i usuwać instancje n8n w locie**, każda pod własną
-subdomeną z automatycznym certyfikatem HTTPS. Nie musisz z góry deklarować, ile
-instancji potrzebujesz — dziś 10, jutro 30, jednym poleceniem.
+subdomeną i własnym HTTPS. Nie musisz z góry deklarować, ile instancji
+potrzebujesz — dziś 16, jutro 30, jednym poleceniem.
+
+**Jedna subdomena = jeden kontener = osobna baza i osobny klucz szyfrowania.**
+Uczestnicy nie widzą nawzajem swoich workflowów ani credentiali.
 
 To alternatywa dla statycznego `docker-compose.prod.yaml` (22 sztywne instancje
-po `IP:port`). Oba warianty mogą leżeć obok siebie w repo — dynamiczny używa
-osobnych plików i nie koliduje ze statycznym.
+po `IP:port`). Oba warianty mogą leżeć obok siebie w repo.
 
 ---
 
-## Jak to działa
+## Dwa tryby pracy
+
+Wybierasz jeden, wpisem `USE_BEHIND_NPM` w `.env.dynamic`.
+
+### Tryb 1 (domyślny): frontem jest nginx-proxy-manager — `USE_BEHIND_NPM=1`
+
+Dla serwera, na którym **NPM już stoi na portach 80/443** i obsługuje inne usługi.
 
 ```
-                *.szkolenie-n8n.easyautomate.pl   (wildcard DNS → IP serwera)
-                              │
-                    ┌─────────▼──────────┐
-                    │      Traefik       │  automatyczny SSL (Let's Encrypt)
-                    │  (reverse proxy)   │  wykrywa kontenery po etykietach
-                    └─────────┬──────────┘
-        ┌───────────┬─────────┼─────────┬─────────────┐
-     n8n-1        n8n-2      n8n-3   ...            n8n-N
-  1.szkolenie   2.szkolenie                    (dodawane w locie)
-       │            │           każda: osobna baza + osobny klucz szyfrowania
-       └────────────┴───────────── wspólny PostgreSQL ─────────────┘
+                       user1.n8n.easyautomate.pl ─┐
+                       user2.n8n.easyautomate.pl ─┤ (rekordy A → IP serwera)
+                                              ... ─┘
+                                    │
+                        ┌───────────▼────────────┐
+                        │  nginx-proxy-manager   │  80/443, SSL per subdomena
+                        │  (Proxy Host per user) │  Let's Encrypt, Websockets ON
+                        └───────────┬────────────┘
+                    sieć docker `n8n-fleet` (bez wystawiania portów na hosta)
+        ┌───────────────┬───────────┴───────┬────────────────┐
+   n8n-user1        n8n-user2          n8n-user3   ...    n8n-userN
+        └───────────────┴───────────────────┴──── wspólny PostgreSQL ────┘
 ```
 
-- **Wildcard DNS** — jeden rekord `*.szkolenie-n8n.easyautomate.pl` obsługuje
-  dowolną liczbę subdomen. Nie dodajesz DNS-a per instancja.
-- **Traefik** wykrywa nowy kontener n8n (po etykietach Docker) i **sam wystawia
-  dla niego certyfikat** (wyzwanie HTTP-01) — bez tokenów DNS, bez restartu reszty.
-- **Subdomeny, nie ścieżki** — `1.szkolenie-n8n...` zamiast `.../1`. n8n pod
-  podścieżką bywa zawodny (WebSockety, OAuth, assety); subdomeny są niezawodne.
-- Każda instancja ma **osobną bazę** (`n8n_<nazwa>`) i **osobny klucz
-  szyfrowania** — pełna izolacja danych między uczestnikami.
+- NPM trafia do kontenera **po nazwie** (`n8n-user1:5678`) — kontenery n8n nie
+  wystawiają żadnego portu na hosta, jedyne wejście z internetu jest przez NPM.
+- Traefik w tym trybie **w ogóle nie startuje** — nie walczy o porty i nie
+  dokłada drugiego proxy na trasie.
+- Proxy Hosty w NPM zakłada hurtowo `bash npm-hosts.sh --create`.
+
+### Tryb 2: Traefik jako brzeg sieci — `USE_BEHIND_NPM=0`
+
+Dla **czystego serwera**, na którym nic nie słucha na 80/443. Traefik przejmuje
+te porty, wykrywa nowe kontenery po etykietach Docker i **sam wystawia
+certyfikat** (wyzwanie HTTP-01) — bez tokenów DNS, bez restartu reszty. Najmniej
+klikania, ale wymaga wolnych portów.
 
 ---
 
 ## Wymagania wstępne
 
-1. **Serwer** (VPS) z Dockerem. RAM: licz ~350–500 MB na instancję n8n +
-   ~300 MB na PostgreSQL. 20 instancji ≈ 10–12 GB RAM.
-2. **Domena** z możliwością ustawienia rekordu wildcard.
-3. **Wpis DNS** — w panelu DNS domeny `easyautomate.pl` dodaj:
+1. **Serwer** (VPS) z Dockerem. Licz ~400–500 MB RAM na instancję n8n + ~300 MB
+   na PostgreSQL. 20 instancji ≈ 10–12 GB RAM **ponad** to, co serwer już zjada.
+2. **DNS.** Albo rekord A per uczestnik:
 
-   | Typ | Nazwa                     | Wartość        |
-   |-----|---------------------------|----------------|
-   | A   | `*.szkolenie-n8n`         | `IP_SERWERA`   |
-   | A   | `szkolenie-n8n` (opcjon.) | `IP_SERWERA`   |
+   | Typ | Nazwa | Wartość |
+   |-----|-------|---------|
+   | A | `user1.n8n` | `IP_SERWERA` |
+   | A | `user2.n8n` | `IP_SERWERA` |
+   | … | … | … |
 
-   Dzięki temu `cokolwiek.szkolenie-n8n.easyautomate.pl` trafia na serwer.
-4. **Porty 80 i 443** otwarte i wolne na serwerze (patrz sekcja o
-   nginx-proxy-manager, jeśli masz już coś na tych portach).
+   albo — wygodniej — jeden wildcard, który obsłuży też uczestników dopisanych
+   w ostatniej chwili:
+
+   | Typ | Nazwa | Wartość |
+   |-----|-------|---------|
+   | A | `*.n8n` | `IP_SERWERA` |
+
+   > **Uwaga na catch-all.** Jeśli domena ma ogólny wildcard (`*.example.pl`),
+   > brakujący rekord **nie zwróci błędu** — cicho wskaże stary serwer, a
+   > certyfikat się nie wystawi. Dlatego zawsze weryfikuj `preflight.sh`.
+3. **Porty**: w trybie 1 — 80/443 należą do NPM; w trybie 2 — muszą być wolne.
+
+---
+
+## Najkrótsza droga: jedno polecenie
+
+```bash
+git clone https://github.com/kamilfityka/szkolenie-n8n.git
+cd szkolenie-n8n
+bash setup-fleet.sh --count 16
+```
+
+`setup-fleet.sh` przechodzi całą drogę: dopyta o domenę i dane do nginx-proxy-managera,
+sprawdzi serwer (DNS, porty, RAM), postawi instancje, założy Proxy Hosty z certyfikatami
+i na koniec wypisze tabelę:
+
+```
+ UCZESTNIK  ADRES                              LOGIN                             HASŁO           KONTENER
+ user1      https://user1.n8n.easyautomate.pl  admin+user1@n8n.easyautomate.pl   376nXiklW0BJ3q  n8n-user1
+ user2      https://user2.n8n.easyautomate.pl  admin+user2@n8n.easyautomate.pl   cqYlM8NYfwSFSo  n8n-user2
+ ...
+```
+
+To samo trafia do `dostepy.md` (gotowe bloki do rozesłania) i `access-list-dynamic.csv`.
+
+Warianty:
+
+```bash
+bash setup-fleet.sh --count 20                       # user1..user20
+bash setup-fleet.sh --prefix kursant --count 8       # kursant1..kursant8
+bash setup-fleet.sh --users ala=ala@firma.pl,bartek  # nazwy własne, własne loginy
+bash setup-fleet.sh --count 16 --skip-npm            # bez dotykania NPM
+```
+
+Skrypt jest **idempotentny** — można go puścić ponownie. Istniejący uczestnicy zachowują
+hasła, klucze szyfrowania i dane; dokładane są tylko brakujące instancje.
+
+Poniżej to samo krok po kroku, gdy chcesz mieć kontrolę nad każdym etapem.
 
 ---
 
@@ -72,51 +130,66 @@ nano .env.dynamic
 ```
 
 Uzupełnij:
-- `BASE_DOMAIN=szkolenie-n8n.easyautomate.pl`
-- `ACME_EMAIL=twoj@email.pl` (ostrzeżenia o certyfikatach)
+- `BASE_DOMAIN=n8n.easyautomate.pl`
+- `ACME_EMAIL=twoj@email.pl`
+- `USE_BEHIND_NPM=1` (jeśli na serwerze stoi nginx-proxy-manager) lub `0`
+- `NPM_EMAIL` / `NPM_PASSWORD` — login do panelu NPM (tylko dla `npm-hosts.sh --create`)
 - `POSTGRES_PASSWORD` i `N8N_DB_PASSWORD` — wygeneruj: `openssl rand -hex 16`
 
-### 3. Otwórz porty w firewallu
+### 3. Sprawdź serwer przed instalacją
 
 ```bash
-ufw allow 22
-ufw allow 80/tcp
-ufw allow 443/tcp
+bash preflight.sh user{1..20}
 ```
+
+Weryfikuje: DNS każdej subdomeny (czy naprawdę wskazuje na ten serwer), kto
+trzyma porty 80/443, czy kontener NPM jest widoczny, ile zostało RAM-u.
+Rusza dalej dopiero, gdy nie ma błędów.
 
 ### 4. Dodaj instancje
 
-Pojedynczo:
-
 ```bash
-bash add-instance.sh 1
-bash add-instance.sh 2
-bash add-instance.sh ala          # nazwa może być słowna → ala.szkolenie-n8n...
-```
+bash add-instance.sh user1                  # -> https://user1.<BASE_DOMAIN>
+bash add-instance.sh ala ala@firma.pl       # nazwa słowna też działa
 
-Hurtowo (np. 20 instancji numerowanych):
-
-```bash
-for i in $(seq 1 20); do bash add-instance.sh "$i"; done
+for i in $(seq 1 20); do bash add-instance.sh "user$i"; done   # hurtowo
 ```
 
 Każde wywołanie:
 - tworzy bazę `n8n_<nazwa>` i klucz szyfrowania,
 - generuje login (`admin+<nazwa>@...`) i losowe hasło,
-- podnosi kontener i rejestruje subdomenę w Traefiku (SSL leci automatycznie),
+- podnosi kontener `n8n-<nazwa>` w sieci `n8n-fleet`,
+- w trybie 2 od razu rejestruje subdomenę w Traefiku (SSL leci automatycznie),
 - dopisuje dostęp do `access-list-dynamic.csv`.
 
-### 5. Rozdaj dostępy
+### 5. (Tryb 1) Załóż Proxy Hosty w NPM
+
+```bash
+bash npm-hosts.sh                  # podgląd: co i gdzie wpisać, nic nie zmienia
+bash npm-hosts.sh --create         # zakłada brakujące hosty przez API NPM
+```
+
+Każdy host to: `userN.<BASE_DOMAIN>` → `http://n8n-userN:5678`, **Websockets
+Support ON**, SSL Let's Encrypt + Force SSL. Skrypt pomija hosty, które już
+istnieją, więc można go puszczać wielokrotnie. Ręcznie w panelu — te same cztery
+pola.
+
+### 6. Rozdaj dostępy
 
 ```bash
 cat access-list-dynamic.csv
 ```
 
-Kolumny: `name, url, email, password`. Każdy uczestnik dostaje swój wiersz, np.:
+Kolumny: `name, url, email, password`, np.:
 
 ```
-"1","https://1.szkolenie-n8n.easyautomate.pl","admin+1@...","xYz123abc"
+"user1","https://user1.n8n.easyautomate.pl","admin+user1@...","xYz123abc"
 ```
+
+> Sprawdź na pierwszej instancji, czy login z CSV faktycznie wchodzi — część
+> wersji n8n zakłada konto właściciela dopiero w przeglądarce, przy pierwszym
+> wejściu. Jeśli tak jest, pierwszym punktem agendy niech będzie „załóż konto
+> na swojej subdomenie".
 
 ---
 
@@ -124,75 +197,62 @@ Kolumny: `name, url, email, password`. Każdy uczestnik dostaje swój wiersz, np
 
 | Cel | Komenda |
 |---|---|
+| Postawić/uzupełnić całą flotę | `bash setup-fleet.sh --count 16` |
 | Lista instancji + status | `bash list-instances.sh` |
-| Dodaj instancję | `bash add-instance.sh 21` |
-| Usuń kontener, **zostaw dane** | `bash remove-instance.sh 21` |
-| Usuń instancję **z danymi** | `bash remove-instance.sh 21 --purge` |
-| Logi instancji | `docker logs n8n-fleet-n8n-1-1` |
-| Restart instancji | `docker restart n8n-fleet-n8n-1-1` |
-| Logi Traefika (diagnoza SSL) | `docker logs n8n-fleet-traefik-1` |
+| Dostępy do rozdania | `cat dostepy.md` |
+| Dodaj instancję | `bash add-instance.sh user21` |
+| Usuń kontener, **zostaw dane** | `bash remove-instance.sh user21` |
+| Usuń instancję **z danymi** | `bash remove-instance.sh user21 --purge` |
+| Logi instancji | `docker logs n8n-user1` |
+| Restart instancji | `docker restart n8n-user1` |
+| Podgląd hostów dla NPM | `bash npm-hosts.sh` |
+| Logi Traefika (tylko tryb 2) | `docker logs n8n-fleet-traefik-1` |
 | Zużycie RAM | `docker stats` |
 
 > `remove-instance.sh <nazwa>` bez `--purge` tylko zdejmuje kontener — baza,
 > wolumen i sekrety zostają, więc `add-instance.sh <nazwa>` przywróci instancję
 > z tym samym kluczem i danymi. Dopiero `--purge` kasuje dane bezpowrotnie.
+> Proxy Host w NPM zostaje w obu przypadkach — usuń go w panelu, jeśli już
+> niepotrzebny.
 
 ---
 
-## Współpraca z nginx-proxy-manager
+## Dodanie uczestnika w trakcie szkolenia
 
-Masz już NPM na porcie 80/443. Są dwie drogi:
+```bash
+bash add-instance.sh user21      # kontener + baza + klucz + dostęp
+bash npm-hosts.sh --create       # Proxy Host + certyfikat (tryb 1)
+```
 
-### Opcja A (najprościej): Traefik przejmuje 80/443
-
-Jeśli ten serwer ma obsługiwać głównie flotę n8n — niech porty 80/443 należą do
-Traefika (zatrzymaj/przenieś NPM). Traefik sam robi SSL. Nic więcej nie trzeba.
-
-### Opcja B: Traefik **za** nginx-proxy-manager
-
-NPM zostaje na 80/443 dla innych usług, a flota n8n stoi za nim:
-
-1. W `.env.dynamic` ustaw port wewnętrzny, np. `TRAEFIK_HTTP_PORT=8080`.
-2. Dodawaj instancje w tym trybie:
-   ```bash
-   USE_BEHIND_NPM=1 bash add-instance.sh 1
-   ```
-   (Traefik routuje wtedy po zwykłym HTTP, a SSL robi NPM z przodu.)
-3. W NPM zrób **jeden** Proxy Host:
-   - Domain: `*.szkolenie-n8n.easyautomate.pl`
-   - Forward Hostname/IP: `IP_SERWERA`, Port: `8080`
-   - Włącz **Websockets Support**
-   - Zakładka SSL: certyfikat **wildcard** dla `*.szkolenie-n8n...`
-     (NPM wymaga tu **DNS Challenge**, np. token Cloudflare — HTTP challenge nie
-     działa dla wildcardu).
-
-Po tym dodawanie/usuwanie instancji nie wymaga już żadnych zmian w NPM — jeden
-wildcard host obsługuje wszystkie subdomeny, a routing per instancja robi Traefik.
-
-> Uwaga: jeśli używasz stale trybu B, wywołuj **wszystkie** komendy z
-> `USE_BEHIND_NPM=1` (także `remove-instance.sh` i `list-instances.sh`),
-> żeby operowały na tym samym złożeniu plików.
+Jeśli w DNS masz wildcard `*.n8n` — to wszystko. Przy rekordach per subdomena
+dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 
 ---
 
 ## Rozwiązywanie problemów
 
 **„Brak certyfikatu / SSL nie działa"**
-- Sprawdź, czy `*.szkolenie-n8n.easyautomate.pl` wskazuje na IP serwera:
-  `dig +short cokolwiek.szkolenie-n8n.easyautomate.pl`
-- Porty 80 i 443 muszą być publicznie dostępne (Let's Encrypt puka na 80).
-- Zajrzyj w logi: `docker logs n8n-fleet-traefik-1`
+- `bash preflight.sh user{1..20}` — najczęstsza przyczyna to subdomena
+  wskazująca na inny serwer (patrz uwaga o catch-all wildcardzie wyżej).
+- Port 80 musi być publicznie dostępny — Let's Encrypt puka po HTTP.
+- Tryb 1: logi certyfikatu są w panelu NPM (SSL Certificates).
+  Tryb 2: `docker logs n8n-fleet-traefik-1`.
 
-**„This site can't provide a secure connection" tuż po dodaniu**
-- Pierwszy certyfikat powstaje po pierwszym wejściu na URL — odczekaj ~15–30 s
-  i odśwież.
+**502 Bad Gateway w NPM**
+- Kontener NPM musi być w sieci `n8n-fleet`:
+  `docker network connect n8n-fleet <nazwa-kontenera-npm>`
+  (skrypty robią to same; `bash list-instances.sh` pokaże wykryty kontener).
+- Sprawdź, czy instancja żyje: `docker ps | grep n8n-user1`.
 
-**n8n pokazuje ostrzeżenie o secure cookie / nie loguje**
-- W tym wariancie działamy po HTTPS, więc `N8N_SECURE_COOKIE=true` jest OK.
-  Jeśli testujesz po samym IP/HTTP, użyj wariantu statycznego (`URUCHOMIENIE.md`).
+**n8n „ładuje się w nieskończoność", edytor nie odpowiada**
+- Prawie zawsze brak **Websockets Support** w Proxy Hoście. Włącz i zapisz.
+
+**n8n marudzi o secure cookie / nie loguje**
+- Wchodzisz po HTTP zamiast HTTPS. W tym wariancie ruch ma iść po HTTPS
+  (`Force SSL` w NPM). Do testów po samym IP użyj wariantu z `URUCHOMIENIE.md`.
 
 **Za mało RAM przy wielu instancjach**
-- `docker stats` pokaże zużycie. Rozważ mniejszą liczbę instancji lub większy VPS.
+- `docker stats` pokaże zużycie, `bash preflight.sh ...` oszacuje z góry.
 
 ---
 
@@ -201,7 +261,7 @@ wildcard host obsługuje wszystkie subdomeny, a routing per instancja robi Traef
 | | `docker-compose.prod.yaml` (statyczny) | flota dynamiczna (ten plik) |
 |---|---|---|
 | Liczba instancji | sztywno 22, edycja YAML | dowolna, jednym poleceniem |
-| Adres | `http://IP:port` | `https://nazwa.domena` |
-| SSL | brak | automatyczny (Let's Encrypt) |
+| Adres | `http://IP:port` | `https://user1.domena` |
+| SSL | brak | tak (NPM albo Traefik) |
 | Dodanie instancji | edycja compose + restart | `bash add-instance.sh <n>` |
-| Proxy | brak | Traefik (dynamiczny) |
+| Izolacja danych | osobna baza | osobna baza + osobny klucz szyfrowania |

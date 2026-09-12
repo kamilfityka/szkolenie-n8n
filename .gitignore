@@ -7,3 +7,4 @@ access-list.txt
 .env.instances
 access-list-dynamic.csv
 instances/*.yaml
+dostepy.md
