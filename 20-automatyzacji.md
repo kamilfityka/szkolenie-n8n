@@ -1,8 +1,13 @@
 # 20 automatyzacji na szkolenie „Narzędzia no-code/low-code AI dla menedżerów”
 
-**Środowisko:** n8n (własna instancja dla każdego uczestnika) + konto Google (Gmail, Kalendarz, Dysk, Arkusze, Dokumenty) + klucz OpenAI.
+**Środowisko:** n8n (własna instancja dla każdego uczestnika) + **SMTP** (wysyłka maili) + **ClickUp** (zadania, terminy, „kalendarz”) + **Google Sheets / Drive / Docs przez Service Account** (dane, dokumenty) + **OpenAI**.
 **Grupa:** maks. 16 osób, 2 dni.
-**Założenie:** uczestnicy **nie** przynoszą żadnych własnych dostępów (SharePoint, Excel, Outlook, ERP). Wszystko, czego potrzebują, dostają od prowadzącego w dniu szkolenia.
+**Założenia:**
+- uczestnicy **nie** przynoszą żadnych własnych dostępów (SharePoint, Excel, Outlook, ERP) i **nie muszą mieć konta Google**,
+- nie ma dostępu do środowiska Microsoft,
+- uczestnicy **nie logują się do Google** — wszystko, co google'owe, działa na jednym koncie usługi (Service Account), którego klucz JSON dostają na kartce,
+- SMTP tylko wysyła, **nie ma triggera „nowy mail”** — pocztę przychodzącą symuluje arkusz `Skrzynka` odpytywany **triggerem czasowym** (`Schedule Trigger`),
+- wyniki (raporty, przypomnienia, alerty) lecą SMTP-em na **prywatny/służbowy adres uczestnika** z `participants.csv`, więc każdy widzi efekt na własnym telefonie.
 
 Dokument jest uzupełnieniem `szkolenie-n8n-ul.md` (tam: instalacja, słownik, metodologia promptów). Tutaj: katalog ćwiczeń i plan.
 
@@ -10,8 +15,8 @@ Dokument jest uzupełnieniem `szkolenie-n8n-ul.md` (tam: instalacja, słownik, m
 
 ## Spis treści
 
-1. [Dlaczego Gmail zamiast Outlook/SharePoint i jak to przełożyć na firmę](#1-mapowanie-firma--szkolenie)
-2. [Co przygotowuje prowadzący (seed data)](#2-co-przygotowuje-prowadzący)
+1. [Mapowanie firma → szkolenie](#1-mapowanie-firma--szkolenie)
+2. [Środowisko i seed data — co przygotowuje prowadzący](#2-środowisko-i-seed-data)
 3. [Katalog 20 automatyzacji](#3-katalog-20-automatyzacji)
    - [Blok 0 — Rozgrzewka (1–3)](#blok-0--rozgrzewka)
    - [Blok 1 — Zadania i otwarte tematy menedżera (4–9)](#blok-1--zadania-i-otwarte-tematy-menedżera)
@@ -25,52 +30,98 @@ Dokument jest uzupełnieniem `szkolenie-n8n-ul.md` (tam: instalacja, słownik, m
 
 ## 1. Mapowanie firma → szkolenie
 
-Uczestnik pyta o Outlook, Teams, SharePoint, Excel, ERP i Power BI. Na szkoleniu nie mamy do tego dostępów, ale **wzorzec automatyzacji jest identyczny** — zmienia się tylko credential i node. Google jest tu wygodny, bo **jedno logowanie OAuth** daje od razu pocztę, kalendarz, pliki, arkusze i dokumenty.
+Uczestnik pyta o Outlook, Teams, SharePoint, Excel, ERP i Power BI. Na szkoleniu nie mamy do tego dostępów, ale **wzorzec automatyzacji jest identyczny**: *trigger → pobierz dane → AI → zapisz / wyślij*. Zmienia się tylko credential i node.
 
-| W firmie uczestnika | Na szkoleniu | Node n8n na szkoleniu | Node n8n w firmie (do pokazania na slajdzie) |
+| W firmie uczestnika | Na szkoleniu | Node n8n na szkoleniu | Node n8n w firmie (na slajd) |
 | :--- | :--- | :--- | :--- |
-| Outlook (poczta) | Gmail | `Gmail Trigger`, `Gmail` | `Microsoft Outlook Trigger`, `Microsoft Outlook` |
-| Kalendarz Outlook | Google Calendar | `Google Calendar` | `Microsoft Outlook` (Calendar) |
-| MS Teams | Gmail / n8n Chat / Slack (opcjonalnie) | `Chat Trigger`, `Gmail` | `Microsoft Teams` |
-| SharePoint (biblioteka dokumentów) | Google Drive | `Google Drive`, `Google Docs` | `Microsoft SharePoint`, `Microsoft OneDrive` |
-| Excel | Google Sheets | `Google Sheets` | `Microsoft Excel 365` |
-| ERP (eksport / API) | plik CSV na Dysku **lub** webhook z „ERP” | `Google Drive Trigger`, `Webhook`, `Extract from File` | `HTTP Request`, `Postgres`/`MSSQL`, `SAP` (community) |
-| Power BI | Google Sheets z wykresem / Looker Studio | `Google Sheets` | `HTTP Request` → Power BI REST API (push dataset) |
+| Outlook — poczta przychodząca | arkusz `Skrzynka` odpytywany co N minut | `Schedule Trigger` → `Google Sheets: Get rows` | `Schedule Trigger` → `Microsoft Outlook: Get many` (ten sam wzorzec!) lub `Outlook Trigger` |
+| Outlook — wysyłka | SMTP | `Send Email` | `Microsoft Outlook: Send` |
+| Kalendarz Outlook | lista `Spotkania` w ClickUp (zadanie = spotkanie, due date = termin) | `ClickUp: Get many / Create task` | `Microsoft Outlook` (Calendar) |
+| Planner / lista zadań | lista `Otwarte sprawy` w ClickUp | `ClickUp` | `Microsoft Planner`, `Microsoft To Do` |
+| MS Teams | wbudowany czat n8n + mail | `Chat Trigger`, `Send Email` | `Microsoft Teams` |
+| SharePoint (biblioteka dokumentów) | folder Google Drive (Service Account) | `Google Drive`, `Google Docs` | `Microsoft SharePoint`, `OneDrive` |
+| Excel | Google Sheets (Service Account) | `Google Sheets` | `Microsoft Excel 365` |
+| ERP (eksport / API) | plik CSV na Dysku **lub** webhook „z ERP” | `Google Drive: Download`, `Extract from File`, `Webhook` | `HTTP Request`, `Postgres` / `MSSQL` |
+| Power BI | zakładka `KPI` w Sheets z wykresem | `Google Sheets: Append` | `HTTP Request` → Power BI REST API (push dataset) |
 
-**Komunikat do grupy na starcie:** „Dziś uczycie się wzorca: *trigger → pobierz dane → AI → zapisz/wyślij*. W poniedziałek w firmie podmieniacie Gmail na Outlook i Sheets na Excel — reszta zostaje.”
+**Komunikat do grupy na starcie:** „Trigger czasowy, który co 5 minut pyta *czy jest coś nowego*, to dokładnie to, co w firmie zrobicie z Outlookiem. Dziś zamiast Outlooka pytamy arkusz.”
 
 ---
 
-## 2. Co przygotowuje prowadzący
+## 2. Środowisko i seed data
 
-Wszystko poniżej robi prowadzący **przed** szkoleniem. Uczestnik pierwszego dnia dostaje kartkę: adres instancji n8n, login/hasło do n8n, login/hasło do konta Google, klucz OpenAI.
+### 2.1 Karta uczestnika
 
-### 2.1 Konta i dostępy
+Każdy dostaje pierwszego dnia kartkę z **sześcioma** rzeczami. Nic więcej nie jest potrzebne.
 
-| Element | Ilość | Uwagi |
+```
+┌──────────────────────────────────────────────────────────────┐
+│  UCZESTNIK U01                                               │
+├──────────────────────────────────────────────────────────────┤
+│  n8n:            https://u01.<domena>   login / hasło        │
+│  Mój e-mail:     jan.kowalski@firma.pl  (tu przychodzą wyniki)│
+│  SMTP:           host / port / user / hasło                  │
+│  Google SA:      plik szkolenie-sa.json (wspólny dla wszystkich)│
+│  Mój arkusz:     https://docs.google.com/spreadsheets/d/…    │
+│  ClickUp:        token pk_… + ID listy „Otwarte sprawy – U01”│
+│  OpenAI:         sk-…                                        │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Credentiale w n8n (tworzone raz, pierwszego dnia, 20 minut):
+
+| Credential | Typ w n8n | Skąd |
 | :--- | :--- | :--- |
-| Instancja n8n | 16 + 1 (prowadzący) | `setup-fleet.sh` z tego repo |
-| Konto Google | 16 + 1 | Najlepiej Google Workspace na własnej domenie (np. `uczestnik01@szkolenie.twojadomena.pl`). Zwykłe konta @gmail.com też działają, ale zakładanie 16 sztuk jest uciążliwe (weryfikacja telefonem). |
-| Google Cloud: OAuth Client | 1 wspólny | Włączone API: Gmail, Calendar, Drive, Sheets, Docs. Aplikacja w trybie **Testing** + wszystkie 16 kont dodane jako *test users* (limit 100). Redirect URI dla **każdej** instancji n8n (`https://<instancja>/rest/oauth2-credential/callback`). |
-| Klucz OpenAI | 1 klucz per uczestnik **lub** 1 wspólny z limitem | Osobne klucze = łatwiej wyłączyć jeden po szkoleniu. Budżet: ~2–3 USD/os. przy gpt-4.1-mini. |
+| `SMTP – szkolenie` | SMTP | wspólne dane od prowadzącego |
+| `Google SA – szkolenie` | Google Service Account | wklejenie zawartości `szkolenie-sa.json` (jeden credential obsługuje Sheets, Drive, Docs) |
+| `ClickUp – moje` | ClickUp API | własny token (patrz 2.3) |
+| `OpenAI – szkolenie` | OpenAi API | klucz od prowadzącego |
 
-Uczestnik pierwszego dnia tworzy w n8n **3 credentiale**: `Google OAuth2` (jeden, używany przez Gmail/Calendar/Drive/Sheets/Docs), `OpenAI`, i to wszystko. Nie ma SMTP, nie ma ClickUp.
+### 2.2 Dlaczego tak, a nie „konto Google dla każdego”
 
-### 2.2 Seed data — „udawana firma”
+- 16 osób logujących się do jednego konta Google z 16 IP naraz = blokady i weryfikacje telefonem właściciela. **Nikt się nie loguje.**
+- Service Account nie ma przeglądarki, nie ma zgód OAuth, nie ma redirect URI per instancja. Jeden JSON, wklejony 16 razy.
+- SMTP nie ma triggera, IMAP Trigger trzyma stałe połączenie, a Gmail dopuszcza **15 jednoczesnych połączeń IMAP** na konto — 17 instancji przekracza limit. Dlatego poczta przychodząca to arkusz + trigger czasowy.
 
-Automatyzacje muszą mieć na czym pracować. Prowadzący uruchamia **jeden workflow-seeder** na swojej instancji n8n, który dla każdego konta z `participants.csv`:
+**Limit, którego trzeba pilnować:** Google Sheets API — **60 odczytów na minutę na użytkownika**, a Service Account to jeden użytkownik dla całej sali. Zasady:
+- `Schedule Trigger` do `Skrzynki` **co 5 minut**, nie co 1 (16 instancji × 1/min = 16 odczytów w tle, zanim ktokolwiek kliknie Execute),
+- na każdym node `Google Sheets` włączone **Retry On Fail** (3 próby, 2000 ms),
+- w Google Cloud Console złożony wniosek o podniesienie limitu (zwykle akceptowany w 1–2 dni),
+- w trakcie ćwiczeń workflowy uruchamiane **ręcznie** (`Execute workflow`), aktywacja („Active”) dopiero na końcu ćwiczenia.
 
-1. **Wysyła ~15 maili** na skrzynkę uczestnika (od fikcyjnych osób: szef, klient, dostawca, HR, dział jakości). W treści: prośby, terminy, reklamacja, raport NCR, „przypominam o…”, spam. Każdy mail celowo zawiera 0–3 action itemy.
-2. **Kopiuje 4 szablony Google Sheets** na Dysk uczestnika (`Google Drive → Copy file`, udostępnione z konta prowadzącego):
-   - `Rejestr otwartych spraw` (kolumny: ID, temat, właściciel, źródło, termin, status, priorytet, utworzono)
-   - `FMEA – linia montażowa` (funkcja, potencjalna wada, S, O, D, RPN, działanie korygujące, odpowiedzialny, termin, status)
-   - `Harmonogram projektu` (zadanie, plan start, plan koniec, faktyczny start, faktyczny koniec, % ukończenia, właściciel)
-   - `Lista wymaganych dokumentów` (nazwa dokumentu, projekt, wymagany, odpowiedzialny)
-3. **Tworzy folder `Projekt Alfa` na Dysku** z 5–6 dokumentami (specyfikacja, protokół z poprzedniego spotkania, raport audytu, instrukcja) — 2 dokumenty z listy wymaganych celowo **brakuje**.
-4. **Tworzy 3 wydarzenia w kalendarzu na jutro** z uczestnikami (te same fikcyjne osoby, co w mailach) i opisem odsyłającym do `Projekt Alfa`.
-5. **Wrzuca plik `eksport_erp.csv`** na Dysk (zamówienia, terminy dostaw, statusy, kilka opóźnionych).
+### 2.3 ClickUp
 
-Dzięki temu każde ćwiczenie od razu daje **realny wynik na realnych danych**, a nie „hello world”.
+Wspólny token to **100 żądań/min na całą salę** — zatnie się. Dlatego, tak jak w `szkolenie-n8n-ul.md` (sekcja 2.2):
+- każdy uczestnik ma **własne konto ClickUp** (darmowe, zakładane na swój adres) i **własny token** `pk_…`,
+- prowadzący zaprasza wszystkie konta do jednego workspace `Szkolenie n8n`,
+- każdy dostaje własny folder `U01` z dwiema listami: `Otwarte sprawy – U01` i `Spotkania – U01`,
+- w listach są **pola niestandardowe**: `Źródło` (tekst), `Priorytet` (dropdown 1–3), `ID protokołu` (tekst); statusy: `otwarte / w toku / zamknięte`.
+
+Zaproszenia wysyła prowadzący **tydzień przed** — token generuje uczestnik w 2 minuty w trakcie konfiguracji.
+
+### 2.4 Arkusz uczestnika (`Szkolenie – U01`)
+
+Jeden plik Google Sheets na uczestnika, skopiowany przez seeder z szablonu prowadzącego, udostępniony do edycji dla Service Account. Zakładki:
+
+| Zakładka | Rola | Zawartość seedowana |
+| :--- | :--- | :--- |
+| `Skrzynka` | **symulacja poczty przychodzącej** | ~20 maili: `id`, `od`, `temat`, `treść`, `data`, `przetworzono` (puste). Od fikcyjnego szefa, klienta, dostawcy, HR, działu jakości. Reklamacja, NCR, „przypominam o…”, spam. Każdy mail ma 0–3 action itemy. |
+| `FMEA` | rejestr FMEA linii montażowej | 25 wierszy: funkcja, wada, S, O, D, RPN (puste — liczymy w n8n), działanie korygujące, odpowiedzialny, termin, status. 4 przeterminowane, 3 z RPN > 100 bez działania. |
+| `Harmonogram` | plan vs fakt projektu | 15 zadań: plan start/koniec, fakt start/koniec, % ukończenia, właściciel. |
+| `Dokumenty wymagane` | lista kontrolna dokumentacji | 8 dokumentów projektu `Alfa`: nazwa, wymagany, odpowiedzialny. |
+| `Zespół` | kto jest kim (dla promptów) | 6 osób: imię, rola, e-mail (= adres uczestnika z sufiksem, np. `jan.kowalski+nowak@firma.pl`, żeby maile „do zespołu” wracały do uczestnika). |
+| `Historia`, `KPI` | puste, wypełniane przez workflowy | — |
+
+**Dosyłanie maili na żywo:** prowadzący ma na swojej instancji workflow `Dosyłacz`: `n8n Form` (od, temat, treść, do kogo: wszyscy / U01…U16) → pętla po arkuszach → `Google Sheets: Append` do `Skrzynki`. Uczestnicy widzą, jak ich trigger czasowy „łapie” nowy mail.
+
+### 2.5 Google Drive (Service Account)
+
+- Folder `Projekt Alfa` (wspólny, tylko odczyt): 6 dokumentów Google Docs — specyfikacja, protokół z poprzedniego spotkania, raport audytu, instrukcja kontroli, plan jakości, notatka od klienta. Z listy `Dokumenty wymagane` celowo **brakuje 2**.
+- Folder `Eksporty ERP` (wspólny): `eksport_erp.csv` — zamówienia, terminy dostaw, statusy, 5 opóźnionych.
+- Folder `Raporty – U01` … `U16` (per uczestnik, zapis): tu lądują protokoły i raporty tworzone przez workflowy.
+- Plik `spotkanie.mp3` (3 minuty, nagrane przez prowadzącego: 2 osoby, 3 decyzje, 4 zadania) — do ćwiczenia 12.
+
+Service Account musi mieć **Editor** na folderach zapisu i **Viewer** na wspólnych.
 
 ---
 
@@ -83,7 +134,16 @@ Legenda:
 - ⏱ czas z buforem na debug w grupie 16 osób
 - Poziom: ★ (klik-klik) / ★★ (expressions, IF, pętle) / ★★★ (AI Agent z narzędziami, Code)
 
-Każda automatyzacja ma sekcję **W firmie:** — czyli jak to samo brzmi po podmianie na Outlook/SharePoint/Excel.
+**Wzorzec „poczta przychodząca”** (używany w #2, #3, #4, #8, #18) — buduje się raz w #2, potem kopiuje:
+
+```
+Schedule Trigger (co 5 min)
+  → Google Sheets: Get rows  (zakładka Skrzynka, filtr: przetworzono = puste)
+  → [właściwa logika]
+  → Google Sheets: Update    (przetworzono = teraz, po kolumnie id)
+```
+
+Każda automatyzacja ma sekcję **W firmie:** — jak to samo brzmi po podmianie na Outlook / SharePoint / Excel / Planner.
 
 ---
 
@@ -93,31 +153,31 @@ Każda automatyzacja ma sekcję **W firmie:** — czyli jak to samo brzmi po pod
 
 **Cel:** pierwszy działający workflow w 30 minut. Uczy: trigger, credential, expression `{{ $json.pole }}`, test krok po kroku.
 
-**Przepływ:** `n8n Form Trigger` (pola: temat, opis, kto zgłasza) → `OpenAI` (nadaj priorytet 1–3 i zaproponuj właściciela z listy działów) → `Gmail: Send` (do zgłaszającego: „przyjęliśmy, priorytet X”).
+**Przepływ:** `n8n Form Trigger` (pola: temat, opis, kto zgłasza) → `OpenAI` (nadaj priorytet 1–3 i zaproponuj właściciela z zakładki `Zespół` wklejonej do promptu) → `Send Email` (SMTP, na adres uczestnika: „przyjęliśmy, priorytet X, właściciel Y”).
 
-**Dane wejściowe:** uczestnik sam wypełnia formularz. Zero zależności zewnętrznych.
+**Dane wejściowe:** uczestnik sam wypełnia formularz. Zero zależności.
 
-**W firmie:** Microsoft Forms / formularz w Teams → ten sam AI → Outlook.
+**W firmie:** Microsoft Forms → ten sam AI → Outlook.
 
-#### 2. Klasyfikator skrzynki — pilne / do wiadomości / spam 🛠 ★★ ⏱ 45 min
+#### 2. Klasyfikator skrzynki — pilne / do wiadomości / spam 🛠 ★★ ⏱ 50 min
 
-**Cel:** przeniesienie istniejącego scenariusza 2 (`Email AI Agent — sentyment + intencja + draft.json`) na Gmail. Uczy: Structured Output Parser, etykiety, logowanie do arkusza.
+**Cel:** zbudować wzorzec „poczta przychodząca” i przenieść istniejący scenariusz 2 (`Email AI Agent — sentyment + intencja + draft.json`) z IMAP na trigger czasowy. Uczy: `Schedule Trigger`, filtr w Sheets, Structured Output Parser, `Switch`, aktualizacja wiersza po kluczu.
 
-**Przepływ:** `Gmail Trigger` (nowy mail, co 1 min) → `Basic LLM Chain` + `Structured Output Parser` (intencja, pilność 1–5, sentyment, czy wymaga odpowiedzi, streszczenie 1 zdanie) → `Switch` po pilności → `Gmail: Add Label` (`PILNE` / `DO WIADOMOŚCI` / `SPAM`) → `Google Sheets: Append` (log).
+**Przepływ:** `Schedule Trigger` (co 5 min) → `Google Sheets: Get rows` (`Skrzynka`, `przetworzono` puste) → `Basic LLM Chain` + `Structured Output Parser` (intencja, pilność 1–5, sentyment, czy wymaga odpowiedzi, streszczenie 1 zdanie) → `Switch` po pilności → `Google Sheets: Update` (`Skrzynka`: kolumny `kategoria`, `pilność`, `przetworzono`) → gałąź PILNE: `Send Email` (SMTP, do uczestnika, tytuł `[PILNE] {{temat}}`).
 
-**Dane wejściowe:** seedowane maile. Prowadzący w trakcie „dosyła” 2–3 nowe maile do wszystkich, żeby trigger odpalił się na żywo.
+**Na żywo:** prowadzący `Dosyłaczem` wrzuca 2 nowe maile — uczestnicy klikają `Execute workflow` i widzą, że przetwarzają się tylko nowe.
 
-**W firmie:** Outlook Trigger → te same node'y AI → kategorie Outlooka.
+**W firmie:** `Schedule Trigger` → `Outlook: Get many` (filtr `isRead eq false`) → to samo → `Outlook: Update` (kategoria).
 
 #### 3. Draft odpowiedzi z człowiekiem w pętli 📦 ★★ ⏱ 30 min
 
-**Cel:** pokazać zasadę *human in the loop* — AI **nie wysyła**, tylko przygotowuje.
+**Cel:** zasada *human in the loop* — AI **nie wysyła** odpowiedzi do nadawcy, tylko przygotowuje ją menedżerowi.
 
-**Przepływ:** rozszerzenie #2: gałąź „wymaga odpowiedzi = true” → `OpenAI` (draft odpowiedzi w tonie menedżera, po polsku, max 120 słów, z 2 wariantami) → `Gmail: Create Draft` w tym samym wątku.
+**Przepływ:** rozszerzenie #2: gałąź „wymaga odpowiedzi = true” → `OpenAI` (draft odpowiedzi w tonie menedżera, po polsku, max 120 słów, 2 warianty: krótki / dyplomatyczny) → `Send Email` do uczestnika z tytułem `[DRAFT] Re: {{temat}}` i oboma wariantami → `Google Sheets: Update` (`Skrzynka`, kolumna `draft`).
 
-**Wariant zaawansowany (demo):** node `Gmail: Send and Wait for Approval` — mail do menedżera z przyciskami *Zatwierdź / Odrzuć*, dopiero wtedy wysyłka.
+**Wariant demo:** `Send Email` z linkami „Zatwierdź / Odrzuć” prowadzącymi do `Webhook`, który dopiero wysyła właściwą odpowiedź (`Send Email` do adresu z `od`). Pokazuje, że akceptacja może być jednym kliknięciem w telefonie.
 
-**W firmie:** Outlook: Create Draft; zatwierdzanie przez Teams Adaptive Card.
+**W firmie:** Outlook: Create Draft w wątku; zatwierdzanie w Teams (Adaptive Card).
 
 ---
 
@@ -125,68 +185,72 @@ Każda automatyzacja ma sekcję **W firmie:** — czyli jak to samo brzmi po pod
 
 > Odpowiedź na obszar 1 uczestnika: identyfikacja action items z poczty/komunikacji, przypisywanie właścicieli, monitorowanie terminów, dashboard otwartych spraw.
 
-#### 4. Action items z maila → Rejestr otwartych spraw 🛠 ★★ ⏱ 45 min
+#### 4. Action items z maila → ClickUp „Otwarte sprawy” 🛠 ★★ ⏱ 45 min
 
-**Cel:** serce całego bloku. Z każdego maila wyciągnąć listę zadań ze strukturą i wpisać do arkusza.
+**Cel:** serce bloku. Z każdego maila wyciągnąć zadania ze strukturą i założyć je w ClickUp z właścicielem i terminem.
 
-**Przepływ:** `Gmail Trigger` → `Basic LLM Chain` + `Structured Output Parser` (tablica: `zadanie`, `właściciel` (wybierz z listy zespołu przekazanej w prompcie), `termin` (ISO, null jeśli brak), `priorytet`) → `Split Out` (jeden item = jedno zadanie) → `Code` (nadaj ID `T-0001`, dopisz link do maila `https://mail.google.com/mail/#all/{{threadId}}`) → `Google Sheets: Append` (`Rejestr otwartych spraw`).
+**Przepływ:** wzorzec „poczta przychodząca” → `Basic LLM Chain` + `Structured Output Parser` (tablica: `zadanie`, `właściciel` — wybierz z listy `Zespół` w prompcie, `termin` ISO lub null, `priorytet`) → `Split Out` (1 item = 1 zadanie) → `ClickUp: Create task` (lista `Otwarte sprawy – U01`; nazwa, opis = streszczenie + cytat z maila, due date, priorytet, pole `Źródło` = `mail #id`) → `Google Sheets: Update` (`przetworzono`).
 
-**Kluczowa lekcja promptowa:** lista zespołu i dzisiejsza data w prompcie, inaczej AI zmyśla właścicieli i „za tydzień” zostaje tekstem.
+**Kluczowa lekcja promptowa:** lista zespołu i **dzisiejsza data** w prompcie (`{{ $now.toISODate() }}`), inaczej „do piątku” zostaje tekstem, a właściciel jest zmyślony.
 
-**W firmie:** Outlook Trigger → Excel 365: Append row / SharePoint List: Create item / Planner: Create task.
+**W firmie:** Outlook: Get many → to samo → Planner: Create task / SharePoint List: Create item.
 
-#### 5. Action items z notatki ze spotkania → zadania + mail do właścicieli 📦 ★★ ⏱ 30 min
+#### 5. Action items z protokołu (Google Docs) → zadania + maile do właścicieli 📦 ★★ ⏱ 30 min
 
-**Cel:** to samo co #4, ale źródłem jest dokument (protokół) zamiast maila. Uczy: czytanie Google Docs, pętla `Loop Over Items`, mail per właściciel.
+**Cel:** to samo co #4, ale źródłem jest dokument, a nie mail. Uczy: `Google Docs: Get` przez Service Account, pętla `Loop Over Items`, mail per właściciel.
 
-**Przepływ:** `n8n Form Trigger` (pole: link do Google Doc **lub** wklejony tekst) → `Google Docs: Get` → LLM + Parser (jak w #4) → `Google Sheets: Append` → `Loop Over Items` → `Gmail: Send` („Przypisano Ci zadanie X, termin Y, źródło: protokół Z”).
+**Przepływ:** `n8n Form Trigger` (pole: ID dokumentu **lub** wklejony tekst) → `Google Docs: Get` → LLM + Parser (jak w #4) → `ClickUp: Create task` → `Loop Over Items` → `Send Email` do właściciela („Przypisano Ci zadanie X, termin Y, źródło: protokół Z”; adres z zakładki `Zespół`, czyli wraca do uczestnika).
 
-**Dane wejściowe:** `Protokół – spotkanie 12.09` w folderze `Projekt Alfa`.
+**Dane wejściowe:** `Protokół – spotkanie 12.09` z folderu `Projekt Alfa`.
 
-**W firmie:** SharePoint: Get file → Word → Outlook/Teams.
+**W firmie:** SharePoint: Get file (Word) → to samo → Outlook.
 
 #### 6. Strażnik terminów — codzienne przypomnienia i eskalacja 🛠 ★★ ⏱ 40 min
 
-**Cel:** monitorowanie terminów. Uczy: `Schedule Trigger`, filtrowanie po datach, `IF` z eskalacją.
+**Cel:** monitorowanie terminów. Uczy: `ClickUp: Get many` z filtrem, daty w expressions, `IF` z eskalacją.
 
-**Przepływ:** `Schedule Trigger` (codziennie 7:30) → `Google Sheets: Get rows` (status ≠ zamknięte) → `Filter` (termin ≤ dziś + 2 dni) → `IF` (termin < dziś?) → **tak:** `Gmail` do właściciela **i** do menedżera (eskalacja, w tytule `[PRZETERMINOWANE]`); **nie:** `Gmail` do właściciela (przypomnienie) → `Google Sheets: Update` (kolumna `ostatnie_przypomnienie`).
+**Przepływ:** `Schedule Trigger` (codziennie 7:30) → `ClickUp: Get many tasks` (lista `Otwarte sprawy`, status ≠ zamknięte, `due_date_lt` = dziś + 2 dni) → `IF` (termin < dziś?) →
+- **tak:** `Send Email` do właściciela **i** do menedżera (tytuł `[PRZETERMINOWANE] {{nazwa}}`), `ClickUp: Update task` (priorytet ↑, komentarz „eskalowano”),
+- **nie:** `Send Email` do właściciela (przypomnienie „zostały 2 dni”).
 
-**Trik szkoleniowy:** w seedowanym arkuszu 3 zadania mają termin „wczoraj”, więc od razu widać eskalację.
+**Trik szkoleniowy:** seeder zakłada w ClickUp 3 zadania z terminem „wczoraj”, więc eskalacja odpala się za pierwszym razem.
 
-**W firmie:** Excel 365 / SharePoint List → Outlook + Teams: Send message.
+**W firmie:** Planner / SharePoint List → Outlook + Teams: Send message.
 
 #### 7. Poniedziałkowy dashboard otwartych spraw 🛠 ★★ ⏱ 45 min
 
-**Cel:** przeniesienie scenariusza 1 (`Raport.json`) z ClickUp na Google Sheets + komentarz AI. Uczy: agregacja w `Code`, HTML w mailu.
+**Cel:** przeniesienie scenariusza 1 (`Raport.json`) na nowe listy + komentarz AI. Uczy: agregacja w `Code`, HTML w mailu, zapis historii do KPI.
 
-**Przepływ:** `Schedule Trigger` (poniedziałek 7:00) → `Google Sheets: Get rows` → `Code` (liczy: otwarte per właściciel, przeterminowane, dodane w ostatnim tygodniu, zamknięte w ostatnim tygodniu) → `OpenAI` (3 zdania komentarza menedżerskiego: co się zatyka, kto przeciążony) → `Gmail: Send` (tabela HTML + komentarz).
+**Przepływ:** `Schedule Trigger` (poniedziałek 7:00) → `ClickUp: Get many tasks` (wszystkie z folderu `U01`) → `Code` (otwarte per właściciel, przeterminowane, dodane w ostatnim tygodniu, zamknięte w ostatnim tygodniu, średni wiek otwartej sprawy) → `OpenAI` (3 zdania komentarza: co się zatyka, kto przeciążony, jedna rekomendacja) → `Send Email` (tabela HTML + komentarz) → `Google Sheets: Append` (zakładka `KPI` — wiersz z datą; wykres w arkuszu = „Power BI dla ubogich”).
 
-**Rozszerzenie:** ten sam `Code` zapisuje wiersz do arkusza `Historia` → wykres w Sheets = „Power BI dla ubogich”.
-
-**W firmie:** Excel 365 → Outlook; wykres w Power BI z push dataset.
+**W firmie:** Planner / Excel 365 → Outlook → Power BI push dataset.
 
 #### 8. Zamykanie spraw odpowiedzią „DONE” 📦 ★★ ⏱ 25 min
 
-**Cel:** domknięcie pętli — właściciel odpowiada na przypomnienie z #6 słowem „done” i status w rejestrze się zmienia. Uczy: parsowanie tematu, `Google Sheets: Update` po kluczu.
+**Cel:** domknięcie pętli — właściciel odpisuje na przypomnienie z #6 słowem „done”, status w ClickUp się zmienia. Uczy: regex w `Code`, `ClickUp: Update task` po ID.
 
-**Przepływ:** `Gmail Trigger` (filtr: temat zawiera `[T-`) → `Code` (regex wyciąga ID z tematu) → `OpenAI` (czy treść oznacza zamknięcie? + ewentualny komentarz) → `IF` → `Google Sheets: Update` (status = zamknięte, data zamknięcia, komentarz).
+**Przepływ:** wzorzec „poczta przychodząca” (`Skrzynka`, filtr: temat zawiera `Re: [`) → `Code` (regex wyciąga ID zadania ClickUp z tematu, np. `[#86abc123]`, które #6 wstawiło do tytułu) → `OpenAI` (czy treść oznacza zamknięcie? + komentarz do zadania) → `IF` → `ClickUp: Update task` (status `zamknięte`) + `ClickUp: Create comment` (treść odpowiedzi).
+
+**Na żywo:** prowadzący `Dosyłaczem` wrzuca mail „Re: [#…] zrobione, faktura wysłana”.
 
 **W firmie:** identycznie na Outlooku; alternatywnie reakcja ✅ w Teams.
 
 #### 9. Asystent zadań na czacie — AI Agent z narzędziami 🛠 ★★★ ⏱ 60 min
 
-**Cel:** „efekt wow” pierwszego dnia i namiastka Teams. Uczy: `AI Agent`, narzędzia (tools), pamięć rozmowy.
+**Cel:** „efekt wow” pierwszego dnia i namiastka Teams. Uczy: `AI Agent`, narzędzia (dowolny node jako *tool*), pamięć rozmowy.
 
 **Przepływ:** `Chat Trigger` (wbudowany czat n8n, publiczny URL) → `AI Agent` z narzędziami:
-- `Google Sheets Tool` (odczyt rejestru),
-- `Google Sheets Tool` (dopisz wiersz),
-- `Google Sheets Tool` (aktualizuj status),
-- `Gmail Tool` (wyślij przypomnienie),
+- `ClickUp Tool` — Get many tasks (moje otwarte),
+- `ClickUp Tool` — Create task,
+- `ClickUp Tool` — Update task (status),
+- `Send Email Tool` — wyślij przypomnienie,
 - `Window Buffer Memory`.
 
-Uczestnik pisze: *„Co mam otwartego z terminem w tym tygodniu?”*, *„Dodaj zadanie: audyt dostawcy, Nowak, piątek”*, *„Zamknij T-0007”*.
+System prompt: lista zespołu, dzisiejsza data, „nigdy nie zamykaj zadania bez potwierdzenia użytkownika”.
 
-**W firmie:** ten sam agent wpięty jako bot w MS Teams (`Microsoft Teams Trigger`) lub Slacku.
+Uczestnik pisze: *„Co mam otwartego z terminem w tym tygodniu?”*, *„Dodaj zadanie: audyt dostawcy, Nowak, piątek”*, *„Zamknij zadanie z audytem”*.
+
+**W firmie:** ten sam agent jako bot w MS Teams (`Microsoft Teams Trigger`) z `Planner Tool`.
 
 ---
 
@@ -194,50 +258,50 @@ Uczestnik pisze: *„Co mam otwartego z terminem w tym tygodniu?”*, *„Dodaj 
 
 > Odpowiedź na obszar 2 uczestnika: briefing przed spotkaniem na bazie korespondencji i dokumentów, potem podsumowanie, decyzje, działania.
 
-#### 10. Poranny briefing — kalendarz + korespondencja 🛠 ★★ ⏱ 45 min
+**Kalendarz na szkoleniu** = lista `Spotkania – U01` w ClickUp: zadanie = spotkanie, `due date` = termin (z godziną), opis = agenda, pole `Uczestnicy` = imiona z `Zespołu`. Seeder tworzy 3 spotkania na **dzień 2 szkolenia**.
 
-**Cel:** codziennie o 7:00 mail „dziś masz 3 spotkania, oto kontekst każdego”. Uczy: `Google Calendar: Get many`, `Gmail: Get many` z wyszukiwaniem, pętla + agregacja.
+#### 10. Poranny briefing — spotkania + korespondencja 🛠 ★★ ⏱ 45 min
 
-**Przepływ:** `Schedule Trigger` → `Google Calendar: Get events` (dziś) → `Loop Over Items` → `Gmail: Get many` (query: `from:(uczestnicy) newer_than:14d`) → `Aggregate` → `OpenAI` (na każde spotkanie: cel, ostatnie ustalenia z maili, otwarte pytania, sugerowane 3 punkty do poruszenia) → `Gmail: Send` (jeden zbiorczy mail).
+**Cel:** codziennie o 7:00 mail „dziś masz 3 spotkania, oto kontekst każdego”. Uczy: dwa źródła w jednym workflow, pętla + agregacja, prompt z kontekstem.
 
-**Dane wejściowe:** 3 seedowane wydarzenia na „jutro” (prowadzący seeduje z datą dnia szkolenia) + maile od tych samych fikcyjnych osób.
+**Przepływ:** `Schedule Trigger` → `ClickUp: Get many tasks` (`Spotkania`, due date = dziś) → `Loop Over Items` → `Google Sheets: Get rows` (`Skrzynka`, filtr: `od` ∈ uczestnicy spotkania, ostatnie 14 dni) → `Aggregate` → `OpenAI` (na każde spotkanie: cel, ostatnie ustalenia z maili, otwarte pytania, sugerowane 3 punkty do poruszenia) → `Send Email` (jeden zbiorczy mail „Briefing na dziś”).
 
-**W firmie:** Outlook Calendar + Outlook Mail — 1:1.
+**W firmie:** Outlook Calendar: Get many + Outlook Mail: Get many — 1:1.
 
 #### 11. Briefing z dokumentów projektowych 📦 ★★ ⏱ 35 min
 
 **Cel:** rozszerzenie #10 o „SharePoint”: agent szuka dokumentów powiązanych z tematem spotkania.
 
-**Przepływ:** z opisu wydarzenia wyciągnij nazwę projektu (`OpenAI` lub regex) → `Google Drive: Search` (folder `Projekt Alfa`, nazwa zawiera) → `Google Docs: Get` (max 3 najnowsze) → `OpenAI` (streszczenie 5 punktów + „co się zmieniło od ostatniego protokołu”) → dołącz do briefingu z #10.
+**Przepływ:** z opisu spotkania wyciągnij nazwę projektu (`OpenAI` lub regex) → `Google Drive: Search` (folder `Projekt Alfa`, nazwa zawiera) → `Google Docs: Get` (max 3 najnowsze) → `OpenAI` (streszczenie 5 punktów + „co się zmieniło od ostatniego protokołu”) → doklej do briefingu z #10.
 
-**W firmie:** SharePoint: Search / Get file → Word → to samo.
+**W firmie:** SharePoint: Search / Get file → to samo.
 
-#### 12. Podsumowanie spotkania: transkrypt/nagranie → decyzje, action items, protokół 🛠 ★★★ ⏱ 60 min
+#### 12. Podsumowanie spotkania: nagranie/transkrypt → decyzje, action items, protokół 🛠 ★★★ ⏱ 60 min
 
-**Cel:** najważniejsze ćwiczenie bloku 2. Uczy: upload pliku w formularzu, transkrypcja (Whisper), jeden prompt → trzy wyjścia, tworzenie dokumentu.
+**Cel:** najważniejsze ćwiczenie bloku 2. Uczy: upload pliku w formularzu, transkrypcja (Whisper), jeden prompt → trzy wyjścia, tworzenie dokumentu, **reużycie** listy z #4.
 
-**Przepływ:** `n8n Form Trigger` (pole plik audio **lub** pole tekst „wklej transkrypt z Teams”) → `IF` (jest plik?) → `OpenAI: Transcribe` → `Basic LLM Chain` + `Structured Output Parser` (`streszczenie`, `decyzje[]`, `action_items[] {zadanie, właściciel, termin}`, `otwarte_pytania[]`) → **równolegle:**
-- `Google Docs: Create` (protokół wg szablonu) w folderze projektu,
-- `Google Sheets: Append` do `Rejestru otwartych spraw` (te same kolumny co #4 — **reużycie**),
-- `Gmail: Send` do uczestników spotkania (z linkiem do protokołu).
+**Przepływ:** `n8n Form Trigger` (pole plik audio **lub** pole tekst „wklej transkrypt”) → `IF` (jest plik?) → `OpenAI: Transcribe` → `Basic LLM Chain` + `Structured Output Parser` (`streszczenie`, `decyzje[]`, `action_items[] {zadanie, właściciel, termin}`, `otwarte_pytania[]`) → **równolegle:**
+- `Google Docs: Create` (protokół wg szablonu) w folderze `Raporty – U01`,
+- `Split Out` → `ClickUp: Create task` (`Otwarte sprawy`, pole `ID protokołu` = ID dokumentu),
+- `Send Email` do uczestników spotkania (z linkiem do protokołu i listą decyzji).
 
-**Dane wejściowe:** prowadzący nagrywa na telefonie 3-minutowe „spotkanie” (2 osoby, 3 decyzje, 4 zadania) i wrzuca plik na wspólny Dysk. Alternatywnie tekst transkryptu.
+**Dane wejściowe:** `spotkanie.mp3` z Dysku (uczestnik pobiera i wrzuca w formularz) lub tekst transkryptu.
 
-**W firmie:** transkrypt z Teams (Graph API / Copilot) → Word na SharePoint → Planner.
+**W firmie:** transkrypt z Teams (Graph API) → Word na SharePoint → Planner → Outlook.
 
-#### 13. Propozycja agendy i zaproszenie 📦 ★★ ⏱ 30 min
+#### 13. Propozycja agendy i „zaproszenie” 📦 ★★ ⏱ 30 min
 
-**Cel:** AI przygotowuje agendę następnego spotkania z otwartych spraw i ostatniego protokołu, a n8n tworzy wydarzenie w kalendarzu.
+**Cel:** AI przygotowuje agendę następnego spotkania z otwartych spraw i ostatniego protokołu, n8n zakłada spotkanie.
 
-**Przepływ:** `n8n Form Trigger` (projekt, data, uczestnicy) → `Google Sheets: Get rows` (otwarte sprawy tego projektu) → `Google Drive: Search` + `Google Docs: Get` (ostatni protokół) → `OpenAI` (agenda: 5 punktów z czasem, kto referuje) → `Google Calendar: Create event` (opis = agenda, goście = uczestnicy) → `Gmail: Send` (potwierdzenie).
+**Przepływ:** `n8n Form Trigger` (projekt, data i godzina, uczestnicy) → `ClickUp: Get many tasks` (otwarte sprawy projektu) → `Google Drive: Search` + `Google Docs: Get` (ostatni protokół) → `OpenAI` (agenda: 5 punktów z czasem, kto referuje) → `ClickUp: Create task` (`Spotkania`, due date, opis = agenda) → `Send Email` (zaproszenie z agendą do uczestników).
 
-**W firmie:** Outlook Calendar: Create event + Teams link.
+**W firmie:** Outlook Calendar: Create event (goście + link Teams).
 
 #### 14. Follow-up 48 h po spotkaniu 🎬 ★★ ⏱ 20 min
 
-**Cel:** pokazać node `Wait` i to, że workflow może „spać” dwa dni.
+**Cel:** pokazać `Wait` — workflow może „spać” dwa dni.
 
-**Przepływ:** po #12 → `Wait` (2 dni; na demo 2 minuty) → `Google Sheets: Get rows` (action items z tego spotkania po ID protokołu) → `Filter` (status ≠ zamknięte) → `OpenAI` (uprzejmy, imienny follow-up) → `Gmail: Send` do każdego właściciela.
+**Przepływ:** po #12 → `Wait` (2 dni; na demo 2 minuty) → `ClickUp: Get many tasks` (pole `ID protokołu` = ten protokół, status ≠ zamknięte) → `Filter` → `OpenAI` (uprzejmy, imienny follow-up) → `Send Email` do każdego właściciela.
 
 **W firmie:** identycznie; w Teams jako DM od bota.
 
@@ -249,63 +313,57 @@ Uczestnik pisze: *„Co mam otwartego z terminem w tym tygodniu?”*, *„Dodaj 
 
 #### 15. Monitor FMEA — przeterminowane działania korygujące i Top 5 RPN 🛠 ★★ ⏱ 45 min
 
-**Cel:** pierwsza automatyzacja „jakościowa”. Uczy: obliczenia w `Code` (RPN = S×O×D), sortowanie, próg alarmowy, raport.
+**Cel:** pierwsza automatyzacja „jakościowa”. Uczy: obliczenia w `Code` (RPN = S×O×D), sortowanie, próg alarmowy, raport, zapis wyników z powrotem do arkusza.
 
-**Przepływ:** `Schedule Trigger` (codziennie) → `Google Sheets: Get rows` (`FMEA – linia montażowa`) → `Code` (przelicz RPN, oznacz: RPN ≥ 100 **i** brak działania korygującego; działanie z terminem < dziś i status ≠ zamknięte) → `IF` (są alarmy?) → `OpenAI` (uporządkuj po wadze biznesowej, dla każdego: co grozi, co zrobić do jutra) → `Gmail: Send` (`[FMEA] 4 alarmy, Top 5 RPN`) → `Google Sheets: Update` (kolumna `alarm_wysłano`).
+**Przepływ:** `Schedule Trigger` (codziennie) → `Google Sheets: Get rows` (`FMEA`) → `Code` (przelicz RPN; oznacz: RPN ≥ 100 **i** brak działania korygującego; działanie z terminem < dziś i status ≠ zamknięte) → `Google Sheets: Update` (kolumna `RPN`) → `IF` (są alarmy?) → `OpenAI` (uporządkuj po wadze biznesowej; dla każdego: co grozi, co zrobić do jutra) → `Send Email` (`[FMEA] 4 alarmy, Top 5 RPN`) → `ClickUp: Create task` dla każdego przeterminowanego działania (jeśli jeszcze nie istnieje — pole `Źródło` = `FMEA #wiersz`).
 
-**Dane wejściowe:** seedowany arkusz FMEA z 25 wierszami, 4 celowo przeterminowane, 3 z RPN > 100 bez działania.
+**W firmie:** Excel 365 / SharePoint List — 1:1. FMEA w systemie QMS → `HTTP Request`.
 
-**W firmie:** Excel 365 / SharePoint List — 1:1. Jeśli FMEA jest w systemie QMS, `HTTP Request`.
+#### 16. Wykrywanie opóźnień z eksportu ERP 🛠 ★★ ⏱ 45 min
 
-#### 16. Wykrywanie opóźnień w projekcie z eksportu ERP 🛠 ★★ ⏱ 45 min
+**Cel:** dane „z ERP” bez ERP. Uczy: `Google Drive: Download` + `Extract from File` (CSV), porównanie plan vs fakt, webhook.
 
-**Cel:** dane „z ERP” bez ERP. Uczy: `Google Drive Trigger` (nowy plik w folderze), `Extract from File` (CSV), porównanie plan vs fakt.
+**Przepływ:** `Schedule Trigger` (co godzinę) → `Google Drive: Search` (folder `Eksporty ERP`, najnowszy plik) → `Google Drive: Download` → `Extract from File` (CSV) → `Code` (opóźnienie = dziś − planowany termin dla statusów ≠ dostarczone; ślizg harmonogramu z zakładki `Harmonogram`) → `OpenAI` (które opóźnienia zatrzymają linię/klienta — skala 1–3) → `Send Email` (tabela opóźnień z komentarzem) + `Google Sheets: Append` (`Historia`).
 
-**Przepływ:** `Google Drive Trigger` (folder `Eksporty ERP`, nowy plik) → `Google Drive: Download` → `Extract from File` (CSV) → `Code` (opóźnienie = dziś − planowany termin dla statusów ≠ dostarczone; ślizg harmonogramu z `Harmonogram projektu`) → `OpenAI` (które opóźnienia zatrzymają linię/klienta — skala 1–3) → `Gmail: Send` (tabela opóźnień z komentarzem) + `Google Sheets: Append` (`Historia opóźnień`).
+**Wariant webhook (demo, 10 min):** `Webhook` odbiera JSON „z ERP”; prowadzący wysyła `curl` na żywo — system może pchać dane sam, bez eksportu.
 
-**Wariant webhook (demo, 10 min):** `Webhook` odbiera JSON „z ERP”; prowadzący wysyła `curl` na żywo — uczestnicy widzą, że system może pchać dane sam, bez eksportu.
-
-**W firmie:** SharePoint: Get file (eksport SAP/Comarch) lub `HTTP Request` do API ERP / `MSSQL` bezpośrednio do bazy raportowej.
+**W firmie:** SharePoint: Get file (eksport SAP/Comarch) lub `HTTP Request` do API ERP / `MSSQL` do bazy raportowej.
 
 #### 17. Audyt kompletności dokumentacji 📦 ★★ ⏱ 35 min
 
 **Cel:** braki dokumentów wykrywane automatycznie. Uczy: porównywanie dwóch zbiorów (`Compare Datasets`), listowanie folderu.
 
-**Przepływ:** `Schedule Trigger` (tygodniowo) → `Google Sheets: Get rows` (`Lista wymaganych dokumentów`) → `Google Drive: Search` (folder projektu, lista plików) → `Compare Datasets` (po nazwie dokumentu; wynik: „w A, nie w B” = brak) → `Loop` → `Gmail: Send` do odpowiedzialnego („Brakuje: Plan kontroli v2, termin: …”) + zbiorczy mail do menedżera.
-
-**Dane wejściowe:** w seedzie celowo brakuje 2 dokumentów.
+**Przepływ:** `Schedule Trigger` (tygodniowo) → `Google Sheets: Get rows` (`Dokumenty wymagane`) → `Google Drive: Search` (folder `Projekt Alfa`, lista plików) → `Compare Datasets` (po nazwie; „w A, nie w B” = brak) → `Loop` → `Send Email` do odpowiedzialnego („Brakuje: Plan kontroli v2”) → `ClickUp: Create task` (uzupełnij dokument, termin +5 dni) + zbiorczy mail do menedżera.
 
 **W firmie:** SharePoint: Get many files w bibliotece — 1:1.
 
 #### 18. Alert jakościowy z maila — reklamacje i NCR 🛠 ★★ ⏱ 40 min
 
-**Cel:** to, co #2, ale dla jakości: reklamacja/raport niezgodności → klasyfikacja → rejestr → natychmiastowa eskalacja przy krytycznych.
+**Cel:** wzorzec z #2, ale dla jakości: reklamacja / raport niezgodności → klasyfikacja → rejestr → natychmiastowa eskalacja przy krytycznych.
 
-**Przepływ:** `Gmail Trigger` → `Basic LLM Chain` + `Structured Output Parser` (czy to zgłoszenie jakościowe; typ: reklamacja klienta / NCR wewnętrzne / dostawca; kategoria wady; ocena krytyczności 1–4 wg podanych definicji; produkt/linia; numer partii jeśli jest) → `IF` (jakościowe?) → `Google Sheets: Append` (`Rejestr NCR`) → `IF` (krytyczność ≥ 3) → `Gmail: Send` do kierownika jakości z tytułem `[KRYTYCZNE]` + `Google Calendar: Create event` (spotkanie 8D za 24 h).
+**Przepływ:** wzorzec „poczta przychodząca” → `Basic LLM Chain` + `Structured Output Parser` (czy to zgłoszenie jakościowe; typ: reklamacja klienta / NCR wewnętrzne / dostawca; kategoria wady; krytyczność 1–4 wg podanych w prompcie definicji; produkt/linia; numer partii jeśli jest) → `IF` (jakościowe?) → `Google Sheets: Append` (zakładka `NCR` — tworzona w tym ćwiczeniu) → `IF` (krytyczność ≥ 3) → `Send Email` do „kierownika jakości” z tytułem `[KRYTYCZNE]` + `ClickUp: Create task` (`Spotkania`: „8D – {{produkt}}”, due date = jutro 9:00, priorytet urgent).
 
-**Dane wejściowe:** 3 seedowane maile: reklamacja klienta (krytyczna), NCR wewnętrzne (średnie), pytanie dostawcy (niejakościowe — test negatywny).
+**Dane wejściowe:** w `Skrzynce` są 3 maile: reklamacja klienta (krytyczna), NCR wewnętrzne (średnie), pytanie dostawcy (niejakościowe — test negatywny).
 
-**W firmie:** Outlook → Excel/SharePoint List → Teams: kanał `#jakość`.
+**W firmie:** Outlook → Excel / SharePoint List → Teams: kanał `#jakość` → Outlook Calendar.
 
 #### 19. Tygodniowy raport ryzyk i szans dla zarządu 🛠 ★★ ⏱ 45 min
 
-**Cel:** złożyć #15, #16, #17, #18 w jeden dokument. Uczy: `Merge` z wielu źródeł, generowanie dokumentu Google Docs, jeden prompt „menedżerski”.
+**Cel:** złożyć #15, #16, #17, #18 w jeden dokument. Uczy: `Merge` z wielu źródeł, generowanie Google Docs, jeden prompt „menedżerski”.
 
-**Przepływ:** `Schedule Trigger` (piątek 15:00) → równolegle `Google Sheets: Get rows` z 4 arkuszy (FMEA, Historia opóźnień, Rejestr NCR, Rejestr otwartych spraw) → `Merge` → `Code` (KPI: liczba alarmów, trend tydzień/tydzień, % zamkniętych działań) → `OpenAI` (sekcje: *Top 5 ryzyk*, *Top 3 szanse*, *Co wymaga decyzji zarządu*, każdy punkt: fakt → skutek → rekomendacja) → `Google Docs: Create` (raport w folderze `Raporty`) → `Gmail: Send` do „zarządu” (link + streszczenie).
+**Przepływ:** `Schedule Trigger` (piątek 15:00) → równolegle: `Google Sheets: Get rows` (`FMEA`, `Historia`, `NCR`) + `ClickUp: Get many tasks` (`Otwarte sprawy`) → `Merge` → `Code` (KPI: liczba alarmów, trend tydzień/tydzień, % zamkniętych działań na czas) → `OpenAI` (sekcje: *Top 5 ryzyk*, *Top 3 szanse*, *Co wymaga decyzji zarządu*; każdy punkt: fakt → skutek → rekomendacja) → `Google Docs: Create` (folder `Raporty – U01`) → `Send Email` do „zarządu” (link + streszczenie) → `Google Sheets: Append` (`KPI`).
 
-**Rozszerzenie (Power BI dla ubogich):** KPI dopisywane do arkusza `KPI tygodniowe` z wykresem; w firmie ten sam wiersz leci do Power BI push dataset.
+**W firmie:** Excel 365 ×3 + Planner → Word na SharePoint → Outlook → Power BI.
 
-**W firmie:** Excel 365 ×4 → Word na SharePoint → Outlook → Power BI.
+#### 20. Analityk danych na czacie — AI Agent nad arkuszami i ClickUp 📦 ★★★ ⏱ 45 min
 
-#### 20. Analityk danych na czacie — AI Agent nad arkuszami 📦 ★★★ ⏱ 45 min
+**Cel:** zamknięcie szkolenia: menedżer zadaje pytania po polsku, agent sam sięga do danych. Uczy: agent z wieloma narzędziami, `Calculator`, ograniczanie halucynacji (prompt: „odpowiadaj tylko na podstawie danych z narzędzi; jeśli ich nie ma, powiedz, że nie wiesz”).
 
-**Cel:** zamknięcie szkolenia: menedżer zadaje pytania po polsku, agent sam sięga do danych. Uczy: agent z wieloma narzędziami, `Calculator`, ograniczenia halucynacji (prompt: „odpowiadaj tylko na podstawie danych z narzędzi”).
+**Przepływ:** `Chat Trigger` → `AI Agent` z narzędziami: `Google Sheets Tool` ×3 (`FMEA`, `Harmonogram`, `NCR` — tylko odczyt), `ClickUp Tool` (Get many tasks), `Calculator`, `Google Docs Tool` (odczyt ostatniego raportu z #19), `Send Email Tool` (wyślij wynik na maila) + pamięć.
 
-**Przepływ:** `Chat Trigger` → `AI Agent` z narzędziami: `Google Sheets Tool` ×4 (FMEA, Harmonogram, NCR, Rejestr spraw — tylko odczyt), `Calculator`, `Google Docs Tool` (odczyt ostatniego raportu z #19), `Gmail Tool` (wyślij wynik na maila) + pamięć.
+Pytania testowe: *„Które działania korygujące Nowaka są przeterminowane?”*, *„Ile mamy NCR krytycznych w tym miesiącu vs poprzednim?”*, *„Wyślij mi listę wad z RPN powyżej 120 na maila.”*
 
-Pytania testowe: *„Które działania korygujące Kowalskiego są przeterminowane?”*, *„Ile mamy NCR krytycznych w tym miesiącu vs poprzednim?”*, *„Wyślij mi listę zadań z RPN powyżej 120 na maila.”*
-
-**W firmie:** te same narzędzia na Excel 365 / SharePoint; agent jako bot w Teams.
+**W firmie:** te same narzędzia na Excel 365 / SharePoint / Planner; agent jako bot w Teams.
 
 ---
 
@@ -313,26 +371,26 @@ Pytania testowe: *„Które działania korygujące Kowalskiego są przeterminowa
 
 | # | Automatyzacja | Blok | Forma | Poziom | ⏱ | Główne node'y |
 | :-- | :--- | :-- | :-- | :-- | :-- | :--- |
-| 1 | Zgłoś temat: formularz → AI → mail | 0 | 🛠 | ★ | 30 | Form, OpenAI, Gmail |
-| 2 | Klasyfikator skrzynki | 0 | 🛠 | ★★ | 45 | Gmail Trigger, LLM Chain, Parser, Switch, Sheets |
-| 3 | Draft odpowiedzi (human in the loop) | 0 | 📦 | ★★ | 30 | Gmail: Create Draft, Send and Wait |
-| 4 | Action items z maila → rejestr | 1 | 🛠 | ★★ | 45 | LLM Chain, Parser, Split Out, Code, Sheets |
-| 5 | Action items z protokołu → zadania + maile | 1 | 📦 | ★★ | 30 | Form, Google Docs, Loop, Gmail |
-| 6 | Strażnik terminów + eskalacja | 1 | 🛠 | ★★ | 40 | Schedule, Sheets, Filter, IF, Gmail |
-| 7 | Poniedziałkowy dashboard | 1 | 🛠 | ★★ | 45 | Schedule, Sheets, Code, OpenAI, Gmail HTML |
-| 8 | Zamykanie spraw przez „DONE” | 1 | 📦 | ★★ | 25 | Gmail Trigger, Code (regex), Sheets: Update |
-| 9 | Asystent zadań na czacie | 1 | 🛠 | ★★★ | 60 | Chat Trigger, AI Agent, Sheets Tool, Gmail Tool, Memory |
-| 10 | Poranny briefing (kalendarz + maile) | 2 | 🛠 | ★★ | 45 | Schedule, Calendar, Gmail: Get many, Aggregate |
+| 1 | Zgłoś temat: formularz → AI → mail | 0 | 🛠 | ★ | 30 | Form, OpenAI, Send Email |
+| 2 | Klasyfikator skrzynki (wzorzec „poczta przychodząca”) | 0 | 🛠 | ★★ | 50 | Schedule, Sheets: Get rows, LLM Chain, Parser, Switch, Sheets: Update |
+| 3 | Draft odpowiedzi (human in the loop) | 0 | 📦 | ★★ | 30 | OpenAI, Send Email, Webhook (demo) |
+| 4 | Action items z maila → ClickUp | 1 | 🛠 | ★★ | 45 | Parser, Split Out, ClickUp: Create task |
+| 5 | Action items z protokołu → zadania + maile | 1 | 📦 | ★★ | 30 | Form, Google Docs, ClickUp, Loop, Send Email |
+| 6 | Strażnik terminów + eskalacja | 1 | 🛠 | ★★ | 40 | Schedule, ClickUp: Get many, IF, Send Email |
+| 7 | Poniedziałkowy dashboard | 1 | 🛠 | ★★ | 45 | ClickUp, Code, OpenAI, Send Email HTML, Sheets: Append |
+| 8 | Zamykanie spraw przez „DONE” | 1 | 📦 | ★★ | 25 | Sheets, Code (regex), ClickUp: Update |
+| 9 | Asystent zadań na czacie | 1 | 🛠 | ★★★ | 60 | Chat Trigger, AI Agent, ClickUp Tool, Send Email Tool, Memory |
+| 10 | Poranny briefing (spotkania + maile) | 2 | 🛠 | ★★ | 45 | ClickUp, Sheets, Loop, Aggregate, OpenAI |
 | 11 | Briefing z dokumentów | 2 | 📦 | ★★ | 35 | Drive: Search, Docs: Get |
-| 12 | Podsumowanie spotkania (audio/tekst) | 2 | 🛠 | ★★★ | 60 | Form (plik), Transcribe, Parser, Docs: Create, Sheets, Gmail |
-| 13 | Agenda + zaproszenie | 2 | 📦 | ★★ | 30 | Form, Sheets, Docs, OpenAI, Calendar: Create |
-| 14 | Follow-up 48 h | 2 | 🎬 | ★★ | 20 | Wait, Sheets, Filter, Gmail |
-| 15 | Monitor FMEA | 3 | 🛠 | ★★ | 45 | Schedule, Sheets, Code (RPN), OpenAI, Gmail |
-| 16 | Opóźnienia z eksportu ERP (CSV / webhook) | 3 | 🛠 | ★★ | 45 | Drive Trigger, Extract from File, Code, Webhook |
-| 17 | Audyt kompletności dokumentacji | 3 | 📦 | ★★ | 35 | Sheets, Drive: Search, Compare Datasets |
-| 18 | Alert jakościowy (reklamacje/NCR) | 3 | 🛠 | ★★ | 40 | Gmail Trigger, Parser, IF, Sheets, Calendar |
-| 19 | Tygodniowy raport ryzyk i szans | 3 | 🛠 | ★★ | 45 | Sheets ×4, Merge, Code, OpenAI, Docs: Create |
-| 20 | Analityk danych na czacie | 3 | 📦 | ★★★ | 45 | Chat Trigger, AI Agent, Sheets Tool ×4, Calculator |
+| 12 | Podsumowanie spotkania (audio/tekst) | 2 | 🛠 | ★★★ | 60 | Form (plik), Transcribe, Parser, Docs: Create, ClickUp, Send Email |
+| 13 | Agenda + zaproszenie | 2 | 📦 | ★★ | 30 | Form, ClickUp, Docs, OpenAI, ClickUp: Create |
+| 14 | Follow-up 48 h | 2 | 🎬 | ★★ | 20 | Wait, ClickUp, Filter, Send Email |
+| 15 | Monitor FMEA | 3 | 🛠 | ★★ | 45 | Sheets, Code (RPN), Sheets: Update, OpenAI, ClickUp |
+| 16 | Opóźnienia z eksportu ERP (CSV / webhook) | 3 | 🛠 | ★★ | 45 | Drive: Download, Extract from File, Code, Webhook |
+| 17 | Audyt kompletności dokumentacji | 3 | 📦 | ★★ | 35 | Sheets, Drive: Search, Compare Datasets, ClickUp |
+| 18 | Alert jakościowy (reklamacje/NCR) | 3 | 🛠 | ★★ | 40 | Sheets, Parser, IF, Send Email, ClickUp |
+| 19 | Tygodniowy raport ryzyk i szans | 3 | 🛠 | ★★ | 45 | Sheets ×3, ClickUp, Merge, Code, OpenAI, Docs: Create |
+| 20 | Analityk danych na czacie | 3 | 📦 | ★★★ | 45 | Chat Trigger, AI Agent, Sheets Tool ×3, ClickUp Tool, Calculator |
 
 Suma czasu ćwiczeń: ~13,5 h. Z wprowadzeniem, konfiguracją i przerwami to pełne 2 dni — dlatego część jest 📦/🎬, a nie 🛠.
 
@@ -344,12 +402,12 @@ Suma czasu ćwiczeń: ~13,5 h. Z wprowadzeniem, konfiguracją i przerwami to pe�
 
 | Czas | Blok | Co |
 | :-- | :-- | :-- |
-| 9:00–9:45 | Wstęp | Czym jest n8n, wzorzec trigger → dane → AI → akcja, mapowanie firma → szkolenie (sekcja 1). Rozdanie kart z dostępami. |
-| 9:45–10:30 | Konfiguracja | Logowanie do n8n, credential Google OAuth (jeden na wszystko), OpenAI. Test: Gmail „Get many”. |
+| 9:00–9:45 | Wstęp | Czym jest n8n, wzorzec trigger → dane → AI → akcja, mapowanie firma → szkolenie (sekcja 1). Rozdanie kart. |
+| 9:45–10:30 | Konfiguracja | Logowanie do n8n, 4 credentiale (SMTP, Google SA, ClickUp — tu uczestnik generuje token, OpenAI). Test: `Google Sheets: Get rows` na własnym arkuszu + `Send Email` do siebie. |
 | 10:30–11:00 | #1 | Pierwszy workflow. |
-| 11:15–12:45 | #2, #3 | Klasyfikator + draft. Metodologia promptów (sekcja 3 głównego skryptu) wpleciona w #2. |
-| 13:30–15:00 | #4, #6 | Action items → rejestr; strażnik terminów. |
-| 15:15–16:15 | #7, #8 | Dashboard; domknięcie pętli. (#5 — jako zadanie „dla szybkich” lub import.) |
+| 11:15–12:45 | #2, #3 | Wzorzec „poczta przychodząca”, klasyfikator, draft. Metodologia promptów (sekcja 3 głównego skryptu) wpleciona w #2. |
+| 13:30–15:00 | #4, #6 | Action items → ClickUp; strażnik terminów. |
+| 15:15–16:15 | #7, #8 | Dashboard; domknięcie pętli. (#5 — zadanie „dla szybkich” lub import.) |
 | 16:15–17:00 | #9 | Asystent na czacie — wow na koniec dnia. |
 
 ### Dzień 2 — „Spotkania i ryzyka” (≈ 8 h)
@@ -357,15 +415,15 @@ Suma czasu ćwiczeń: ~13,5 h. Z wprowadzeniem, konfiguracją i przerwami to pe�
 | Czas | Blok | Co |
 | :-- | :-- | :-- |
 | 9:00–9:30 | Recap | Import workflowów z dnia 1 dla spóźnionych/nieobecnych; 3 pytania kontrolne. |
-| 9:30–11:00 | #10, #11 | Briefing poranny (dane seedowane na dziś!). |
+| 9:30–11:00 | #10, #11 | Briefing poranny (spotkania seedowane na dziś!). |
 | 11:15–12:30 | #12 | Podsumowanie spotkania z nagrania. |
 | 12:30–13:00 | #13, #14 | Agenda; follow-up jako demo. |
 | 13:45–15:15 | #15, #16 | FMEA; opóźnienia z „ERP” + webhook demo. |
 | 15:30–16:30 | #18, #17 | Alert jakościowy; audyt dokumentacji (import). |
 | 16:30–17:15 | #19, #20 | Raport dla zarządu; analityk na czacie. |
-| 17:15–17:30 | Zamknięcie | „Co przenoszę do firmy w poniedziałek” — każdy wybiera 1 automatyzację i wypisuje, co podmienia (Outlook/Excel/SharePoint). |
+| 17:15–17:30 | Zamknięcie | „Co przenoszę do firmy w poniedziałek” — każdy wybiera 1 automatyzację i wypisuje, co podmienia (Outlook / Excel / SharePoint / Planner). |
 
-**Zasada bezpieczeństwa czasowego:** jeśli grupa jest wolniejsza, wypadają w tej kolejności: #14, #5, #11, #17, #13. Nigdy nie wypadają: #4, #6, #9, #12, #15, #19.
+**Zasada bezpieczeństwa czasowego:** jeśli grupa jest wolniejsza, wypadają w tej kolejności: #14, #5, #11, #17, #13. Nigdy nie wypadają: #2, #4, #6, #9, #12, #15, #19.
 
 ---
 
@@ -373,9 +431,9 @@ Suma czasu ćwiczeń: ~13,5 h. Z wprowadzeniem, konfiguracją i przerwami to pe�
 
 **Tak, ma to sens** — pod trzema warunkami:
 
-1. **Dzień 2 jest samodzielny tematycznie.** Bloki 2 i 3 (spotkania, FMEA/ryzyka) to dokładnie obszary 2 i 3 z listy uczestnika i nie wymagają workflowów z dnia 1 — poza `Rejestrem otwartych spraw`, który dostaje jako gotowy arkusz z seeda.
-2. **Środowisko musi być skonfigurowane przed 9:00.** Prowadzący wysyła tej osobie dzień wcześniej kartę z dostępami i 10-minutowy film/instrukcję (sekcja 2 głównego skryptu: credential Google + OpenAI). Alternatywnie: prowadzący przychodzi 30 min wcześniej i robi to z nią. Bez tego straci pierwsze ćwiczenie dnia 2.
-3. **Dostaje paczkę z dnia 1 do importu** (JSON-y #1–#9) i w recapie o 9:00 importuje #2 i #4, żeby rozumieć, skąd bierze się rejestr spraw i parser strukturalny — te dwa mechanizmy wracają w #12, #18, #19.
+1. **Dzień 2 jest samodzielny tematycznie.** Bloki 2 i 3 (spotkania, FMEA/ryzyka) to dokładnie obszary 2 i 3 z listy uczestnika i nie wymagają workflowów z dnia 1 — potrzebna jest tylko lista `Otwarte sprawy` w ClickUp, którą seeder zakłada każdemu.
+2. **Środowisko musi być skonfigurowane przed 9:00.** Prowadzący wysyła tej osobie dzień wcześniej kartę z dostępami, zaproszenie do ClickUp i 10-minutową instrukcję (4 credentiale). Alternatywnie przychodzi 30 min wcześniej i robi to z nią. Bez tego straci pierwsze ćwiczenie dnia 2.
+3. **Dostaje paczkę z dnia 1 do importu** (JSON-y #1–#9) i w recapie o 9:00 importuje #2 i #4 — wzorzec „poczta przychodząca” i parser strukturalny wracają w #10, #12, #18, #19.
 
 Czego nie nadrobi: praktyki z expressions i debugowania z dnia 1. Dlatego przy tej osobie warto usiąść w #10 (pierwsze samodzielne ćwiczenie dnia 2) — po nim zwykle łapie rytm.
 
@@ -387,24 +445,27 @@ Jeśli ta osoba jest autorem listy trzech obszarów — tym bardziej warto, bo d
 
 **Tydzień przed:**
 - [ ] 17 instancji n8n (`setup-fleet.sh`), sprawdzone logowanie na każdej
-- [ ] 17 kont Google (Workspace lub gmail.com), hasła na kartach
-- [ ] Google Cloud: projekt, włączone API (Gmail, Calendar, Drive, Sheets, Docs), OAuth Client, 17 test users, 17 redirect URI
-- [ ] Klucze OpenAI (osobne lub wspólny z limitem), doładowane saldo
-- [ ] 4 szablony Google Sheets + folder `Projekt Alfa` + `eksport_erp.csv` na koncie prowadzącego
-- [ ] Nagranie 3-minutowego „spotkania” (do #12)
-- [ ] Workflow-seeder przetestowany na 1 koncie (maile, kopie arkuszy, wydarzenia, pliki)
-- [ ] JSON-y wszystkich 20 workflowów wyeksportowane z instancji prowadzącego, credentiale w nich **odpięte**
+- [ ] SMTP: konto/relay z limitem wysyłki ≥ 500 maili/dzień (16 osób × ~25 testowych maili); jeśli Gmail — App Password, jeśli własny serwer — SPF/DKIM, żeby maile nie lądowały w spamie uczestników
+- [ ] Google Cloud: projekt, włączone API (Sheets, Drive, Docs), **Service Account** + klucz JSON, wniosek o podniesienie limitu Sheets API (odczyty/min/użytkownik)
+- [ ] Szablon arkusza `Szkolenie – szablon` (zakładki z 2.4) i foldery Drive (2.5) udostępnione dla Service Account
+- [ ] ClickUp: workspace `Szkolenie n8n`, zaproszenia wysłane na adresy z `participants.csv`, 16 folderów `U01…U16` z listami `Otwarte sprawy` i `Spotkania`, pola niestandardowe, statusy
+- [ ] Klucze OpenAI (osobne lub wspólny z limitem), doładowane saldo (~2–3 USD/os. przy gpt-4.1-mini)
+- [ ] Nagranie `spotkanie.mp3` (3 min)
+- [ ] Workflow-seeder przetestowany na 1 uczestniku: kopia arkusza z szablonu (Drive: Copy) + wpisanie adresu uczestnika do `Zespołu`, folder `Raporty – Uxx`, 3 spotkania i 3 przeterminowane zadania w ClickUp (token prowadzącego, listy uczestnika)
+- [ ] Workflow `Dosyłacz` (Form → Append do 16 `Skrzynek`)
+- [ ] JSON-y wszystkich 20 workflowów wyeksportowane, credentiale w nich **odpięte**, ID arkuszy/list jako pola do podmiany na górze workflow (`Set` node „Konfiguracja”)
 
 **Dzień przed:**
-- [ ] Seeder uruchomiony dla wszystkich 16 kont; daty wydarzeń kalendarza = dzień 2 szkolenia
+- [ ] Seeder uruchomiony dla wszystkich 16; terminy spotkań w ClickUp = dzień 2 szkolenia, zadania „przeterminowane” = wczoraj względem dnia 1
 - [ ] Karta z dostępami + instrukcja wysłana do osoby dołączającej drugiego dnia
-- [ ] Test end-to-end #2 i #10 na losowym koncie uczestnika
+- [ ] Test end-to-end #2 i #10 na losowym arkuszu/folderze uczestnika, z instancji uczestnika
 
 **W trakcie:**
-- [ ] Prowadzący „dosyła” maile na żywo (#2, #4, #18) — przygotowane w drafcie
+- [ ] `Dosyłacz` otwarty na drugim ekranie; przygotowane treści maili do #2, #4, #8, #18
 - [ ] `curl` do webhooka (#16) w schowku
-- [ ] Po każdym bloku: JSON-y na wspólny Dysk uczestników
+- [ ] Po każdym bloku: JSON-y na wspólny folder Drive (link publiczny)
+- [ ] Obserwacja limitu Sheets API w Cloud Console (wykres 429) — jeśli rośnie: „wyłączcie Active, klikajcie Execute”
 
 **Po szkoleniu:**
-- [ ] Wyłączyć klucze OpenAI, zresetować hasła kont Google lub usunąć konta
+- [ ] Wyłączyć klucze OpenAI, zrotować hasło SMTP, usunąć klucz Service Account, usunąć uczestników z workspace ClickUp (lub zostawić — ich decyzja)
 - [ ] Zostawić uczestnikom paczkę JSON + ten dokument + tabelę mapowania (sekcja 1)
