@@ -38,22 +38,27 @@ for a in "$@"; do
 done
 
 # Zakładka "Advanced" każdego Proxy Hosta. Bez tego n8n za NPM pokazuje
-# "Lost connection to the server":
-#  - długie timeouty: kanał push i wykonania z AI trwają > 60 s,
-#  - Sec-Fetch-Site: n8n 2.x odrzuca push, gdy przeglądarka/proxy/VPN nie
-#    przekaże tego nagłówka (log: "Origin header does NOT match ... Invalid origin!").
-#    Push jest z definicji same-origin (własna subdomena), więc wpisujemy go na sztywno.
-# UWAGA: nagłówek musi siedzieć w osobnym bloku `location /rest/push`. nginx nie
-# dziedziczy proxy_set_header z poziomu server, gdy location ma własne — a domyślna
-# lokacja NPM ma (Host, X-Forwarded-*). Wpis na poziomie server byłby ignorowany.
+# "Lost connection to the server". n8n 2.x (push/origin-validator.ts) przy KAŻDYM
+# połączeniu push wymaga nagłówka Origin zgodnego z Host — a przeglądarka nie
+# wysyła Origin przy zwykłym GET na własną domenę (SSE). Dlatego:
+#  - gdy Origin brak, dopisujemy go z $scheme://$host (żądanie z obcej strony
+#    zawsze niesie własny Origin, więc ochrona przed cross-site zostaje),
+#  - Upgrade/Connection jawnie, żeby websocket dochodził jako upgrade
+#    (bez tego n8n odpowiada 401 „Unauthorized” na /rest/push),
+#  - długie timeouty i brak buforowania dla strumienia push i wykonań z AI.
+# Osobny blok location jest konieczny: nginx nie dziedziczy proxy_set_header
+# z poziomu server, gdy location ma własne — a domyślna lokacja NPM ma.
 NPM_ADVANCED_CONFIG='proxy_read_timeout 3600s;
 proxy_send_timeout 3600s;
 proxy_connect_timeout 60s;
 client_max_body_size 50m;
 
 location /rest/push {
+    set $push_origin $http_origin;
+    if ($push_origin = "") { set $push_origin "$scheme://$host"; }
     proxy_http_version 1.1;
     proxy_set_header Host $host;
+    proxy_set_header Origin $push_origin;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Scheme $scheme;
     proxy_set_header X-Forwarded-Proto $scheme;
