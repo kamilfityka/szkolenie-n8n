@@ -255,14 +255,15 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 **„Problem running workflow — Lost connection to the server"**
 - Najpierw log: `docker logs n8n-user1 --tail 40`. Jeśli jest w nim
   `Origin header does NOT match the expected origin ... Invalid origin!`, to n8n 2.x
-  odrzuca kanał push, bo nie dostał nagłówka `Sec-Fetch-Site: same-origin`
-  (SSE) albo `Origin` (websocket). Zjada je przeglądarka z rozszerzeniami
-  prywatności, antywirus z inspekcją HTTPS albo firmowy proxy/VPN uczestnika.
-  Naprawa po stronie serwera, dla wszystkich hostów naraz:
-  `bash npm-hosts.sh --update` — wgrywa każdemu Proxy Hostowi zakładkę Advanced
-  z blokiem `location /rest/push` (nagłówek `Sec-Fetch-Site: same-origin`,
-  długie timeouty, bez buforowania). Osobna lokacja jest konieczna: nginx nie
-  dziedziczy `proxy_set_header` z poziomu server, gdy lokacja ma własne nagłówki.
+  odrzuca kanał push, bo żądanie nie ma nagłówka `Origin` zgodnego z `Host`.
+  Przeglądarka nie wysyła `Origin` przy zwykłym GET na własną domenę, więc SSE
+  bez pomocy proxy nie działa w tej wersji n8n wcale. Naprawa po stronie
+  serwera, dla wszystkich hostów naraz: `bash npm-hosts.sh --update` — wgrywa
+  każdemu Proxy Hostowi zakładkę Advanced z blokiem `location /rest/push`, który
+  dopisuje `Origin` tylko gdy go brak, jawnie przekazuje `Upgrade`/`Connection`
+  (inaczej websocket dochodzi bez upgrade'u i n8n odpowiada 401) i wyłącza
+  buforowanie. Osobna lokacja jest konieczna: nginx nie dziedziczy
+  `proxy_set_header` z poziomu server, gdy lokacja ma własne nagłówki.
   (`setup-fleet.sh` robi to samo przy każdym uruchomieniu.)
 - W przeglądarce (Network, filtr WS lub `push`) żądanie `/rest/push`:
   - brak połączenia albo 400/502 → Websockets Support wyłączone w Proxy Hoście,
