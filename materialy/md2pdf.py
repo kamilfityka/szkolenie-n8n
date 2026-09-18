@@ -91,7 +91,7 @@ const {chromium} = require('playwright');
     path: pdfPath, format: 'A4', printBackground: true, preferCSSPageSize: true,
     displayHeaderFooter: true,
     headerTemplate: `<div style="font-size:7.5pt;color:#666;width:100%;padding:0 16mm;font-family:Arial,sans-serif;">${title}</div>`,
-    footerTemplate: `<div style="font-size:7.5pt;color:#666;width:100%;padding:0 16mm;font-family:Arial,sans-serif;display:flex;justify-content:space-between;"><span>Szkolenie n8n — materiał dla uczestników</span><span>Strona <span class="pageNumber"></span> z <span class="totalPages"></span></span></div>`,
+    footerTemplate: `<div style="font-size:7.5pt;color:#666;width:100%;padding:0 16mm;font-family:Arial,sans-serif;display:flex;justify-content:space-between;"><span>Narzędzia no-code/low-code AI dla menedżerów — materiał dla uczestników</span><span>Strona <span class="pageNumber"></span> z <span class="totalPages"></span></span></div>`,
     margin: {top: '16mm', bottom: '18mm', left: '16mm', right: '16mm'},
   });
   await browser.close();
