@@ -203,7 +203,7 @@ done
 # ---------------------------------------------------------------------------
 if [ "$SKIP_NPM" != "1" ]; then
   if [ -n "${NPM_EMAIL:-}" ] && [ -n "${NPM_PASSWORD:-}" ]; then
-    bash "$ROOT/npm-hosts.sh" --create || c_warn "Nie wszystkie Proxy Hosty się założyły — szczegóły wyżej.
+    bash "$ROOT/npm-hosts.sh" --create --update || c_warn "Nie wszystkie Proxy Hosty się założyły — szczegóły wyżej.
    Brakujące dodasz w panelu NPM albo ponownie: bash npm-hosts.sh --create"
   else
     c_warn "Brak NPM_EMAIL/NPM_PASSWORD w .env.dynamic — Proxy Hosty trzeba wpisać ręcznie:"
