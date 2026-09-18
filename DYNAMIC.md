@@ -258,9 +258,9 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
     dodaj `proxy_read_timeout 3600s; proxy_send_timeout 3600s;`,
   - **401** → n8n odrzuca ciasteczko sesji na websockecie. Wyloguj, wyczyść
     ciasteczka domeny, zaloguj; sprawdź w oknie prywatnym (rozszerzenia
-    prywatności potrafią odciąć cookie na upgrade). Jeśli nie pomaga, ustaw
-    w `.env.dynamic` `N8N_PUSH_BACKEND=sse` i przerenderuj flotę
-    (`bash setup-fleet.sh --count 20`) — push idzie wtedy zwykłym HTTP.
+    prywatności potrafią odciąć cookie na upgrade). Od tej wersji repo push idzie
+    domyślnie przez SSE (`N8N_PUSH_BACKEND=sse` w szablonie) — jeśli instancje
+    postawiono wcześniej, przerenderuj flotę: `bash setup-fleet.sh --count 20`.
 - Zmiany w `docker-compose.yaml` **nie dotyczą floty** — instancje renderuje
   `_lib.sh` do `instances/<nazwa>.yaml`. Ustawienia zmieniasz w `.env.dynamic`.
 - Przypnij wersję obrazu (`N8N_IMAGE` w `.env.dynamic`), żeby wszystkie

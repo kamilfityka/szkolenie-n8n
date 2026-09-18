@@ -286,7 +286,7 @@ services:
       N8N_PROTOCOL: https
       N8N_PORT: "5678"
       N8N_PROXY_HOPS: "1"
-      N8N_PUSH_BACKEND: \${N8N_PUSH_BACKEND:-websocket}
+      N8N_PUSH_BACKEND: \${N8N_PUSH_BACKEND:-sse}
       WEBHOOK_URL: https://${slug}.\${BASE_DOMAIN}/
       N8N_EDITOR_BASE_URL: https://${slug}.\${BASE_DOMAIN}/
       N8N_SECURE_COOKIE: "true"
