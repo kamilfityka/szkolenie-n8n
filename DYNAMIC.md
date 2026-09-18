@@ -209,6 +209,7 @@ Kolumny: `name, url, email, password`, np.:
 | Logi instancji | `docker logs n8n-user1` |
 | Restart instancji | `docker restart n8n-user1` |
 | Podgląd hostów dla NPM | `bash npm-hosts.sh` |
+| Wgraj hostom NPM zakładkę Advanced (timeouty, push n8n) | `bash npm-hosts.sh --update` |
 | Zużycie RAM | `docker stats` |
 
 > `remove-instance.sh <nazwa>` bez `--purge` tylko zdejmuje kontener — baza,
@@ -252,15 +253,21 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 - Prawie zawsze brak **Websockets Support** w Proxy Hoście. Włącz i zapisz.
 
 **„Problem running workflow — Lost connection to the server"**
-- W przeglądarce (Network, filtr WS) sprawdź żądanie `/rest/push`:
+- Najpierw log: `docker logs n8n-user1 --tail 40`. Jeśli jest w nim
+  `Origin header does NOT match the expected origin ... Invalid origin!`, to n8n 2.x
+  odrzuca kanał push, bo nie dostał nagłówka `Sec-Fetch-Site: same-origin`
+  (SSE) albo `Origin` (websocket). Zjada je przeglądarka z rozszerzeniami
+  prywatności, antywirus z inspekcją HTTPS albo firmowy proxy/VPN uczestnika.
+  Naprawa po stronie serwera, dla wszystkich hostów naraz:
+  `bash npm-hosts.sh --update` — wgrywa każdemu Proxy Hostowi zakładkę Advanced
+  z `proxy_set_header Sec-Fetch-Site same-origin;` i długimi timeoutami.
+  (`setup-fleet.sh` robi to samo przy każdym uruchomieniu.)
+- W przeglądarce (Network, filtr WS lub `push`) żądanie `/rest/push`:
   - brak połączenia albo 400/502 → Websockets Support wyłączone w Proxy Hoście,
-  - 101, ale zrywa się po ~minucie → timeouty proxy; w zakładce Advanced hosta
-    dodaj `proxy_read_timeout 3600s; proxy_send_timeout 3600s;`,
-  - **401** → n8n odrzuca ciasteczko sesji na websockecie. Wyloguj, wyczyść
-    ciasteczka domeny, zaloguj; sprawdź w oknie prywatnym (rozszerzenia
-    prywatności potrafią odciąć cookie na upgrade). Od tej wersji repo push idzie
-    domyślnie przez SSE (`N8N_PUSH_BACKEND=sse` w szablonie) — jeśli instancje
-    postawiono wcześniej, przerenderuj flotę: `bash setup-fleet.sh --count 20`.
+  - 101/200, ale zrywa się po ~minucie → timeouty proxy (patrz `--update` wyżej),
+  - 401 → n8n odrzuca ciasteczko sesji: wyloguj, wyczyść ciasteczka domeny,
+    zaloguj; sprawdź w oknie prywatnym i w innej przeglądarce,
+  - 500 → patrz log wyżej.
 - Zmiany w `docker-compose.yaml` **nie dotyczą floty** — instancje renderuje
   `_lib.sh` do `instances/<nazwa>.yaml`. Ustawienia zmieniasz w `.env.dynamic`.
 - Przypnij wersję obrazu (`N8N_IMAGE` w `.env.dynamic`), żeby wszystkie
