@@ -37,18 +37,38 @@ for a in "$@"; do
   esac
 done
 
-# Zakładka "Advanced" każdego Proxy Hosta. Dwie rzeczy, bez których n8n za NPM
-# pokazuje "Lost connection to the server":
-#  - długie timeouty: kanał push (SSE/websocket) i wykonania z AI trwają > 60 s,
+# Zakładka "Advanced" każdego Proxy Hosta. Bez tego n8n za NPM pokazuje
+# "Lost connection to the server":
+#  - długie timeouty: kanał push i wykonania z AI trwają > 60 s,
 #  - Sec-Fetch-Site: n8n 2.x odrzuca push, gdy przeglądarka/proxy/VPN nie
 #    przekaże tego nagłówka (log: "Origin header does NOT match ... Invalid origin!").
 #    Push jest z definicji same-origin (własna subdomena), więc wpisujemy go na sztywno.
+# UWAGA: nagłówek musi siedzieć w osobnym bloku `location /rest/push`. nginx nie
+# dziedziczy proxy_set_header z poziomu server, gdy location ma własne — a domyślna
+# lokacja NPM ma (Host, X-Forwarded-*). Wpis na poziomie server byłby ignorowany.
 NPM_ADVANCED_CONFIG='proxy_read_timeout 3600s;
 proxy_send_timeout 3600s;
 proxy_connect_timeout 60s;
-proxy_buffering off;
-proxy_set_header Sec-Fetch-Site same-origin;
-client_max_body_size 50m;'
+client_max_body_size 50m;
+
+location /rest/push {
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Scheme $scheme;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    proxy_set_header Sec-Fetch-Site same-origin;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_pass $forward_scheme://$server:$port$request_uri;
+}'
+
 
 
 shopt -s nullglob
