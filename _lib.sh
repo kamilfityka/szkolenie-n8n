@@ -268,7 +268,7 @@ render_instance() {
 # Aby usunąć: bash remove-instance.sh ${slug}
 services:
   n8n-${slug}:
-    image: docker.n8n.io/n8nio/n8n
+    image: \${N8N_IMAGE:-docker.n8n.io/n8nio/n8n}
     container_name: n8n-${slug}
     restart: always
     depends_on:
@@ -286,6 +286,7 @@ services:
       N8N_PROTOCOL: https
       N8N_PORT: "5678"
       N8N_PROXY_HOPS: "1"
+      N8N_PUSH_BACKEND: \${N8N_PUSH_BACKEND:-sse}
       WEBHOOK_URL: https://${slug}.\${BASE_DOMAIN}/
       N8N_EDITOR_BASE_URL: https://${slug}.\${BASE_DOMAIN}/
       N8N_SECURE_COOKIE: "true"

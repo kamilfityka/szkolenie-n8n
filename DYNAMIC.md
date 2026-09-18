@@ -251,6 +251,21 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 **n8n „ładuje się w nieskończoność", edytor nie odpowiada**
 - Prawie zawsze brak **Websockets Support** w Proxy Hoście. Włącz i zapisz.
 
+**„Problem running workflow — Lost connection to the server"**
+- W przeglądarce (Network, filtr WS) sprawdź żądanie `/rest/push`:
+  - brak połączenia albo 400/502 → Websockets Support wyłączone w Proxy Hoście,
+  - 101, ale zrywa się po ~minucie → timeouty proxy; w zakładce Advanced hosta
+    dodaj `proxy_read_timeout 3600s; proxy_send_timeout 3600s;`,
+  - **401** → n8n odrzuca ciasteczko sesji na websockecie. Wyloguj, wyczyść
+    ciasteczka domeny, zaloguj; sprawdź w oknie prywatnym (rozszerzenia
+    prywatności potrafią odciąć cookie na upgrade). Od tej wersji repo push idzie
+    domyślnie przez SSE (`N8N_PUSH_BACKEND=sse` w szablonie) — jeśli instancje
+    postawiono wcześniej, przerenderuj flotę: `bash setup-fleet.sh --count 20`.
+- Zmiany w `docker-compose.yaml` **nie dotyczą floty** — instancje renderuje
+  `_lib.sh` do `instances/<nazwa>.yaml`. Ustawienia zmieniasz w `.env.dynamic`.
+- Przypnij wersję obrazu (`N8N_IMAGE` w `.env.dynamic`), żeby wszystkie
+  instancje były identyczne i nie zmieniały się przy kolejnym `up`.
+
 **n8n marudzi o secure cookie / nie loguje**
 - Wchodzisz po HTTP zamiast HTTPS. W tym wariancie ruch ma iść po HTTPS
   (`Force SSL` w NPM). Do testów po samym IP użyj wariantu z `URUCHOMIENIE.md`.
