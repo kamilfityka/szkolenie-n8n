@@ -46,6 +46,7 @@ services:
   n8n:
     image: ${N8N_IMAGE:-docker.n8n.io/n8nio/n8n}
     container_name: n8n-single
+    hostname: ${N8N_HOST:-n8n.local}   # FQDN dla EHLO w node Send Email (SMTP)
     restart: always
     depends_on:
       postgres:

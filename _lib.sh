@@ -270,6 +270,10 @@ services:
   n8n-${slug}:
     image: \${N8N_IMAGE:-docker.n8n.io/n8nio/n8n}
     container_name: n8n-${slug}
+    # FQDN jako hostname: node Send Email wysyła EHLO z nazwą hosta; bez kropki
+    # nodemailer podstawia [127.0.0.1], co część serwerów SMTP odrzuca
+    # („501 Syntactically invalid HELO argument(s)”).
+    hostname: ${slug}.\${BASE_DOMAIN}
     restart: always
     depends_on:
       postgres:
