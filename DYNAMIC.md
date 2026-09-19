@@ -276,6 +276,13 @@ dodaj najpierw `user21.n8n  A  IP_SERWERA` i odczekaj TTL.
 - Przypnij wersję obrazu (`N8N_IMAGE` w `.env.dynamic`), żeby wszystkie
   instancje były identyczne i nie zmieniały się przy kolejnym `up`.
 
+**Send Email: „501 Syntactically invalid HELO argument(s)"**
+- Serwer SMTP odrzuca powitanie EHLO. Kontener bez `hostname` przedstawia się
+  identyfikatorem bez kropki, a biblioteka pocztowa podstawia wtedy `[127.0.0.1]`,
+  czego część serwerów nie przyjmuje. Szablon floty ustawia `hostname` na
+  subdomenę instancji — po `bash setup-fleet.sh --count N` problem znika.
+  Doraźnie: w credentialu SMTP pole **Client Host Name** = pełna nazwa domenowa.
+
 **n8n marudzi o secure cookie / nie loguje**
 - Wchodzisz po HTTP zamiast HTTPS. W tym wariancie ruch ma iść po HTTPS
   (`Force SSL` w NPM). Do testów po samym IP użyj wariantu z `URUCHOMIENIE.md`.
